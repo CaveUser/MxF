@@ -1,6 +1,4 @@
--- GameList.lua
 local Games = {
-    [987654321] = "https://raw.githubusercontent.com/TonUser/MxF/main/S&P.lua"
+    [123456789] = "https://raw.githubusercontent.com/CaveUser/MxF/main/scripts/sailor.lua"
 }
-
 return Games
