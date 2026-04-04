@@ -1,6 +1,6 @@
 -- ======================================================
--- 👑 MxF HUB - SPEED HUB X EDITION (V5 - THE ULTIMATE)
--- Auto Tower (Nearest), Auto Skills, Smart TP, UI Bold
+-- 👑 MxF HUB - SPEED HUB X EDITION (FINAL V6)
+-- UI Compacte, Skills Dropdown, Farm -90 Degrees, TP NPC
 -- ======================================================
 
 local Players = game:GetService("Players")
@@ -73,7 +73,11 @@ table.sort(MobNames); table.sort(BossNames); table.sort(IslandNames); table.sort
 
 local selectedMob, selectedBoss, selectedIsland, selectedNPC = MobNames[1], BossNames[1], IslandNames[1], NpcNames[1]
 local autoFarmMob, autoFarmBoss, autoFarmTower, killauraEnabled = false, false, false, false
-local autoSkills = {Z = false, X = false, C = false, V = false, F = false}
+
+-- Skills Vars
+local selectedSkill = "All"
+local autoSkillEnabled = false
+
 local targetPlayers = false
 local mobHeight, tweenSpeed, combatCooldown, combatRadius = 8, 150, 0.1, 500
 local combatCoroutine, currentTarget = nil, nil
@@ -117,7 +121,7 @@ local function getTarget(targetName, isSpecific)
 			if obj:IsA("Model") and not string.find(string.lower(obj.Name), "quest") then
 				local match = true
 				if targetName == "NearestTower" then
-					match = true -- Ignore les noms pour la tour
+					match = true 
 				elseif isSpecific then
 					if string.sub(obj.Name, 1, #targetName) == targetName then
 						if targetName == "Thief" and string.find(obj.Name, "Boss") then match = false end
@@ -134,19 +138,6 @@ local function getTarget(targetName, isSpecific)
 						if not isSpecific and targetName ~= "NearestTower" and dist > combatRadius then continue end
 						if dist < minDist then minDist = dist; closest = obj end
 					end
-				end
-			end
-		end
-	end
-	
-	if targetPlayers and not isSpecific and targetName ~= "NearestTower" then
-		for _, p in ipairs(Players:GetPlayers()) do
-			if p ~= player and p.Character then
-				local hum = p.Character:FindFirstChild("Humanoid")
-				local root = p.Character:FindFirstChild("HumanoidRootPart")
-				if hum and hum.Health > 0 and root then
-					local dist = (root.Position - myPos).Magnitude
-					if dist <= combatRadius and dist < minDist then minDist = dist; closest = p.Character end
 				end
 			end
 		end
@@ -178,12 +169,15 @@ local function startCombatLoop()
 							local island = autoFarmMob and MobDatabase[selectedMob] or BossDatabase[selectedBoss]
 							teleportToIsland(island); task.wait(2.5)
 						else
+							-- Positionnement à exactement -90 degrés (tête vers le bas)
 							local tpPos = target.HumanoidRootPart.Position + Vector3.new(0, mobHeight, 0)
+							local targetCFrame = CFrame.new(tpPos) * CFrame.Angles(math.rad(-90), 0, 0)
+
 							if dist > 15 then
 								local tTime = math.clamp(dist / tweenSpeed, 0.05, 3)
-								TweenService:Create(root, TweenInfo.new(tTime, Enum.EasingStyle.Linear), {CFrame = CFrame.lookAt(tpPos, target.HumanoidRootPart.Position)}):Play()
+								TweenService:Create(root, TweenInfo.new(tTime, Enum.EasingStyle.Linear), {CFrame = targetCFrame}):Play()
 							else
-								root.CFrame = CFrame.lookAt(tpPos, target.HumanoidRootPart.Position)
+								root.CFrame = targetCFrame
 								pcall(function() remote:FireServer() end)
 							end
 						end
@@ -214,15 +208,23 @@ end
 -- ==========================================
 task.spawn(function()
 	while task.wait(0.5) do
-		if currentTarget and currentTarget:FindFirstChild("Humanoid") and currentTarget.Humanoid.Health > 0 and (autoFarmMob or autoFarmBoss or autoFarmTower or killauraEnabled) then
+		if autoSkillEnabled and currentTarget and currentTarget:FindFirstChild("Humanoid") and currentTarget.Humanoid.Health > 0 and (autoFarmMob or autoFarmBoss or autoFarmTower or killauraEnabled) then
 			local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
 			local tRoot = currentTarget:FindFirstChild("HumanoidRootPart")
 			if root and tRoot and (root.Position - tRoot.Position).Magnitude < 40 then
-				if autoSkills.Z then VIM:SendKeyEvent(true, Enum.KeyCode.Z, false, game); task.wait(0.05); VIM:SendKeyEvent(false, Enum.KeyCode.Z, false, game) end
-				if autoSkills.X then VIM:SendKeyEvent(true, Enum.KeyCode.X, false, game); task.wait(0.05); VIM:SendKeyEvent(false, Enum.KeyCode.X, false, game) end
-				if autoSkills.C then VIM:SendKeyEvent(true, Enum.KeyCode.C, false, game); task.wait(0.05); VIM:SendKeyEvent(false, Enum.KeyCode.C, false, game) end
-				if autoSkills.V then VIM:SendKeyEvent(true, Enum.KeyCode.V, false, game); task.wait(0.05); VIM:SendKeyEvent(false, Enum.KeyCode.V, false, game) end
-				if autoSkills.F then VIM:SendKeyEvent(true, Enum.KeyCode.F, false, game); task.wait(0.05); VIM:SendKeyEvent(false, Enum.KeyCode.F, false, game) end
+				if selectedSkill == "All" then
+					local keys = {Enum.KeyCode.Z, Enum.KeyCode.X, Enum.KeyCode.C, Enum.KeyCode.V, Enum.KeyCode.F}
+					for _, k in ipairs(keys) do
+						VIM:SendKeyEvent(true, k, false, game)
+						task.wait(0.05)
+						VIM:SendKeyEvent(false, k, false, game)
+					end
+				else
+					local k = Enum.KeyCode[selectedSkill]
+					VIM:SendKeyEvent(true, k, false, game)
+					task.wait(0.05)
+					VIM:SendKeyEvent(false, k, false, game)
+				end
 			end
 		end
 	end
@@ -283,7 +285,7 @@ player.CharacterAdded:Connect(function()
 end)
 
 -- ==========================================
--- 3. MOTEUR UI (SPEED HUB X REPRODUCTION PROPRE)
+-- 3. MOTEUR UI
 -- ==========================================
 local screenGui = Instance.new("ScreenGui", targetGui)
 screenGui.Name = "MxFHubPremium"
@@ -387,7 +389,6 @@ local function CreateTab(name, iconId)
 	return page
 end
 
--- Sous-titres avec barre fine
 local function CreateTitle(page, text)
 	local frame = Instance.new("Frame", page)
 	frame.Size = UDim2.new(1, -10, 0, 35); frame.BackgroundTransparency = 1
@@ -402,7 +403,6 @@ local function CreateTitle(page, text)
 	return frame
 end
 
--- Component Helpers
 local function CreateRow(page, height)
 	local row = Instance.new("Frame", page)
 	row.Size = UDim2.new(1, -10, 0, height or 50); row.BackgroundColor3 = Color3.fromRGB(22, 23, 27); row.BackgroundTransparency = 0.2
@@ -498,9 +498,7 @@ local function CreateKeybind(page, text, defaultKey, callback)
 			currentKey = input.KeyCode
 			btn.Text = currentKey.Name
 			btn.TextColor3 = Color3.fromRGB(200, 200, 200)
-			isBinding = false
-			task.wait(0.1)
-			isBindingAny = false
+			isBinding = false; task.wait(0.1); isBindingAny = false
 			if callback then callback(currentKey) end
 		end
 	end)
@@ -590,18 +588,15 @@ local pgConfig = CreateTab("Configs", iconConfig)
 CreateTitle(pgFarm, "Combat Target")
 CreateDropdown(pgFarm, "Select Monster", MobNames, selectedMob, function(v) selectedMob = v end)
 CreateToggle(pgFarm, "Auto Farm Monster", false, function(v) autoFarmMob = v; if v then autoFarmBoss, autoFarmTower, killauraEnabled = false, false, false; startCombatLoop() end end)
+
 CreateDropdown(pgFarm, "Select Boss", BossNames, selectedBoss, function(v) selectedBoss = v end)
 CreateToggle(pgFarm, "Auto Farm Boss", false, function(v) autoFarmBoss = v; if v then autoFarmMob, autoFarmTower, killauraEnabled = false, false, false; startCombatLoop() end end)
 
-CreateTitle(pgFarm, "Tower & Nearest")
 CreateToggle(pgFarm, "Auto Farm Nearest (Tower)", false, function(v) autoFarmTower = v; if v then autoFarmMob, autoFarmBoss, killauraEnabled = false, false, false; startCombatLoop() end end)
 
 CreateTitle(pgFarm, "Auto Skills")
-CreateToggle(pgFarm, "Auto Use Z", false, function(v) autoSkills.Z = v end)
-CreateToggle(pgFarm, "Auto Use X", false, function(v) autoSkills.X = v end)
-CreateToggle(pgFarm, "Auto Use C", false, function(v) autoSkills.C = v end)
-CreateToggle(pgFarm, "Auto Use V", false, function(v) autoSkills.V = v end)
-CreateToggle(pgFarm, "Auto Use F", false, function(v) autoSkills.F = v end)
+CreateDropdown(pgFarm, "Select Skill", {"All", "Z", "X", "C", "V", "F"}, "All", function(v) selectedSkill = v end)
+CreateToggle(pgFarm, "Enable Auto Skills", false, function(v) autoSkillEnabled = v end)
 
 CreateTitle(pgFarm, "Settings & Speed")
 CreateSlider(pgFarm, "Tween Speed (Approche)", 50, 500, 150, function(v) tweenSpeed = v end)
