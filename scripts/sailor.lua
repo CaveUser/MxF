@@ -1,6 +1,6 @@
 -- ======================================================
--- 👑 MxF HUB - SPEED HUB X EDITION (FINAL V9 - BYPASS)
--- Anti-Cheat Bypass (Safe Tween), Smart Portal Farm
+-- 👑 MxF HUB - SPEED HUB X EDITION (FINAL V10)
+-- Long Range Aura, Target Players, Onglet "Self"
 -- ======================================================
 
 local Players = game:GetService("Players")
@@ -39,6 +39,7 @@ local BossDatabase = {
 	["ThiefBoss"] = "Starter"
 }
 
+-- Mapping complet des NPCs
 local NpcIslandMap = {
 	["DungeonMerchantNPC"] = "Dungeon", ["DungeonPortalsNPC"] = "Dungeon", ["ShadowMonarchBuyerNPC"] = "Dungeon", ["CidBuyer"] = "Dungeon",
 	["SummonBossNPC"] = "Boss", ["ExchangeNPC"] = "Boss", ["MoonSlayerBuff"] = "Boss", ["GilgameshBuyerNPC"] = "Boss", ["SaberAlterBuyerNPC"] = "Boss", ["GrailCraftNPC"] = "Boss", ["BabylonCraftNPC"] = "Boss", ["SaberAlterMasteryNPC"] = "Boss", ["QinShiBuyer"] = "Boss", ["MoonSlayerSeller"] = "Boss", ["BlessedMaidenBuyerNPC"] = "Boss", ["BlessedMaidenMasteryNPC"] = "Boss",
@@ -47,7 +48,7 @@ local NpcIslandMap = {
 	["DarkBladeNPC"] = "SnowIsland", ["RagnaQuestlineBuff"] = "SnowIsland", ["RagnaBuyer"] = "SnowIsland", ["HakiQuestNPC"] = "SnowIsland", ["ArtifactsUnlocker"] = "SnowIsland", ["ArtifactMilestoneNPC"] = "SnowIsland", ["QuestNPC7"] = "SnowIsland", ["QuestNPC8"] = "SnowIsland",
 	["AscendNPC"] = "Sailor", ["StorageNPC"] = "Sailor", ["TitlesNPC"] = "Sailor", ["GemFruitDealer"] = "Sailor", ["MerchantNPC"] = "Sailor", ["CoinFruitDealer"] = "Sailor", ["RerollStatNPC"] = "Sailor", ["TraitNPC"] = "Sailor", ["BossRushShopNPC"] = "Sailor", ["BossRushPortalNPC"] = "Sailor", ["BossRushMerchantNPC"] = "Sailor", ["JinwooMovesetNPC"] = "Sailor", ["AlucardBuyer"] = "Sailor",
 	["GryphonBuyerNPC"] = "Shibuya", ["BlessingNPC"] = "Shibuya", ["EnchantNPC"] = "Shibuya", ["GojoMovesetNPC"] = "Shibuya", ["YujiBuyerNPC"] = "Shibuya", ["SukunaMovesetNPC"] = "Shibuya", ["QuestNPC9"] = "Shibuya", ["QuestNPC10"] = "Shibuya", ["ConquerorHakiNPC"] = "Shibuya",
-	["AizenMovesetNPC"] = "Hollow", ["AizenQuestlineBuff"] = "Hollow", ["HogyokuQuestNPC"] = "Hollow", ["IchigoBuyer"] = "Hollow", ["QuestNPC11"] = "Hollow",
+	["IchigoBuyer"] = "Hollow", ["AizenQuestlineBuff"] = "Hollow", ["HogyokuQuestNPC"] = "Hollow", ["AizenMovesetNPC"] = "Hollow", ["QuestNPC11"] = "Hollow",
 	["QuestNPC12"] = "Shinjuku", ["QuestNPC13"] = "Shinjuku", ["StrongestinHistoryBuyerNPC"] = "Shinjuku", ["SukunaMasteryNPC"] = "Shinjuku", ["StrongestBossSummonerNPC"] = "Shinjuku", ["GojoCraftNPC"] = "Shinjuku", ["GojoMasteryNPC"] = "Shinjuku", ["SukunaCraftNPC"] = "Shinjuku", ["StrongestofTodayBuyerNPC"] = "Shinjuku",
 	["QuestNPC14"] = "Slime", ["RimuruSummonerNPC"] = "Slime", ["SkillTreeNPC"] = "Slime", ["SlimeCraftNPC"] = "Slime", ["RimuruBuyer"] = "Slime", ["RimuruMasteryNPC"] = "Slime",
 	["AnosQuestNPC"] = "Academy", ["AnosBossSummonerNPC"] = "Academy", ["QuestNPC15"] = "Academy", ["AnosBuyerNPC"] = "Academy",
@@ -74,10 +75,11 @@ table.sort(MobNames); table.sort(BossNames); table.sort(IslandNames); table.sort
 local selectedMob, selectedBoss, selectedIsland, selectedNPC = MobNames[1], BossNames[1], IslandNames[1], NpcNames[1]
 local autoFarmMob, autoFarmBoss, autoFarmTower, killauraEnabled = false, false, false, false
 
-local currentFarmIsland = "" -- Force le TP Portail
+local isOnRightIsland = false 
 local selectedSkill = "All"
 local autoSkillEnabled = false
 local targetPlayers = false
+local auraTargetsFarmMob = false -- Nouvelle variable Aura
 local mobHeight, tweenSpeed, combatCooldown, combatRadius = 8, 150, 0.1, 500
 local combatCoroutine, currentTarget = nil, nil
 
@@ -94,46 +96,40 @@ local function teleportToIsland(islandName)
 	pcall(function() ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("TeleportToPortal"):FireServer(islandName) end)
 end
 
--- ✅ BYPASS ANTI-CHEAT NPC TP (NoClip Temporaire + Vitesse Safe)
+-- BYPASS ANTI-CHEAT : Step-Lerp Teleport
+local function safeLerpTP(targetCFrame)
+	local char = player.Character
+	local root = char and char:FindFirstChild("HumanoidRootPart")
+	if not root then return end
+	
+	local dist = (root.Position - targetCFrame.Position).Magnitude
+	local steps = math.ceil(dist / 35) -- Micro-sauts de 35 studs pour éviter le flag anti-cheat
+	
+	if steps > 0 then
+		for i = 1, steps do
+			if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then break end
+			player.Character.HumanoidRootPart.CFrame = root.CFrame:Lerp(targetCFrame, i / steps)
+			task.wait() 
+		end
+	end
+	
+	if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+		player.Character.HumanoidRootPart.CFrame = targetCFrame
+	end
+end
+
 local function teleportToSpecificNPC(npcName)
 	local targetIsland = NpcIslandMap[npcName] or "Starter"
 	
-	-- 1. TP Strict au Portail
 	teleportToIsland(targetIsland)
-	task.wait(0.5) -- Laisse la zone charger à 100%
+	task.wait(3.5) 
 	
 	local npc = workspace:FindFirstChild("ServiceNPCs") and workspace.ServiceNPCs:FindFirstChild(npcName)
-	local char = player.Character
-	local root = char and char:FindFirstChild("HumanoidRootPart")
-	local hum = char and char:FindFirstChild("Humanoid")
-	
-	if npc and npc:FindFirstChild("HumanoidRootPart") and root and hum then
-		hum.PlatformStand = true
-		
-		-- Injection d'un NoClip fantôme pour ne pas cogner les murs (Bypass)
-		local safeFlight = RunService.Stepped:Connect(function()
-			for _, p in ipairs(char:GetDescendants()) do
-				if p:IsA("BasePart") then p.CanCollide = false end
-			end
-			root.Velocity = Vector3.zero -- Retire la gravité
-		end)
-		
+	if npc and npc:FindFirstChild("HumanoidRootPart") then
 		local targetCFrame = npc.HumanoidRootPart.CFrame * CFrame.new(0, 0, -4)
-		local dist = (root.Position - targetCFrame.Position).Magnitude
-		
-		-- Vitesse Safe maximale fixée à 200 studs/s pour esquiver l'anti-cheat
-		local safeSpeed = 120
-		local glideTime = math.clamp(dist / safeSpeed, 0.1, 15)
-		
-		local tween = TweenService:Create(root, TweenInfo.new(glideTime, Enum.EasingStyle.Linear), {CFrame = targetCFrame})
-		tween:Play()
-		tween.Completed:Wait()
-		
-		-- On nettoie après le vol
-		safeFlight:Disconnect()
-		hum.PlatformStand = false
+		safeLerpTP(targetCFrame)
 	else
-		print("Erreur : Le NPC n'est pas chargé sur l'île.")
+		print("Erreur : Le NPC " .. npcName .. " est introuvable sur " .. targetIsland .. " après le chargement.")
 	end
 end
 
@@ -170,6 +166,21 @@ local function getTarget(targetName, isSpecific)
 			end
 		end
 	end
+	
+	-- Cible aussi les joueurs si la case est cochée
+	if targetPlayers and targetName ~= "NearestTower" then
+		for _, p in ipairs(Players:GetPlayers()) do
+			if p ~= player and p.Character then
+				local hum = p.Character:FindFirstChild("Humanoid")
+				local root = p.Character:FindFirstChild("HumanoidRootPart")
+				if hum and hum.Health > 0 and root then
+					local dist = (root.Position - myPos).Magnitude
+					if dist <= combatRadius and dist < minDist then minDist = dist; closest = p.Character end
+				end
+			end
+		end
+	end
+	
 	return closest, minDist
 end
 
@@ -187,42 +198,47 @@ local function startCombatLoop()
 					hum.PlatformStand = true
 					
 					local tName = autoFarmTower and "NearestTower" or (autoFarmMob and selectedMob or selectedBoss)
-					local targetIsland = autoFarmTower and "Tower" or (autoFarmMob and MobDatabase[selectedMob] or BossDatabase[selectedBoss])
-					
-					-- ✅ CORRECTION AUTO-FARM : Force le passage par le portail si on a changé de cible
-					if currentFarmIsland ~= targetIsland and not autoFarmTower then
-						teleportToIsland(targetIsland)
-						task.wait(3.5)
-						currentFarmIsland = targetIsland
-						continue -- Recommence la boucle après TP
-					end
-					
+					local island = autoFarmTower and "" or (autoFarmMob and MobDatabase[selectedMob] or BossDatabase[selectedBoss])
 					local target, dist = getTarget(tName, true)
 					currentTarget = target
 					
 					if target and target:FindFirstChild("HumanoidRootPart") then
+						isOnRightIsland = true 
+						
 						local tpPos = target.HumanoidRootPart.Position + Vector3.new(0, mobHeight, 0)
 						local targetCFrame = CFrame.new(tpPos) * CFrame.Angles(math.rad(-90), 0, 0)
 
 						if dist > 15 then
-							local glideTime = math.clamp(dist / tweenSpeed, 0.05, 3)
-							local tween = TweenService:Create(root, TweenInfo.new(glideTime, Enum.EasingStyle.Linear), {CFrame = targetCFrame})
-							tween:Play()
-							root.Velocity = Vector3.zero
+							local tTime = math.clamp(dist / tweenSpeed, 0.05, 3)
+							TweenService:Create(root, TweenInfo.new(tTime, Enum.EasingStyle.Linear), {CFrame = targetCFrame}):Play()
 						else
 							root.Velocity, root.RotVelocity = Vector3.zero, Vector3.zero
 							root.CFrame = targetCFrame
 							pcall(function() remote:FireServer() end)
 						end
 					else 
-						-- Le mob n'est pas là, mais on est sur la bonne île : On Flotte et on attend le respawn
-						root.Velocity, root.RotVelocity = Vector3.zero, Vector3.zero
+						if not autoFarmTower then
+							if not isOnRightIsland then
+								teleportToIsland(island)
+								task.wait(3.5)
+								isOnRightIsland = true
+							else
+								root.Velocity, root.RotVelocity = Vector3.zero, Vector3.zero
+							end
+						else
+							root.Velocity, root.RotVelocity = Vector3.zero, Vector3.zero
+						end
 					end
 				elseif killauraEnabled then
 					if not flyEnabled then hum.PlatformStand = false end
-					local target, _ = getTarget(nil, false)
+					
+					-- ✅ Gère la distance et le focus de l'Aura
+					local tName = auraTargetsFarmMob and selectedMob or nil
+					local target, _ = getTarget(tName, auraTargetsFarmMob)
 					currentTarget = target
+					
 					if target and target:FindFirstChild("HumanoidRootPart") then
+						-- Se tourne vers la cible de loin et envoie la frappe à distance !
 						root.CFrame = CFrame.lookAt(root.Position, Vector3.new(target.HumanoidRootPart.Position.X, root.Position.Y, target.HumanoidRootPart.Position.Z))
 						pcall(function() remote:FireServer() end)
 					end
@@ -316,7 +332,7 @@ player.CharacterAdded:Connect(function()
 end)
 
 -- ==========================================
--- 3. MOTEUR UI (SPEED HUB X)
+-- 3. MOTEUR UI
 -- ==========================================
 local screenGui = Instance.new("ScreenGui", targetGui)
 screenGui.Name = "MxFHubPremium"
@@ -611,7 +627,7 @@ local iconTeleport = "7733992829"
 local iconConfig = "7734068321"
 
 local pgFarm = CreateTab("Farm", iconFarm)
-local pgPlayer = CreateTab("Player", iconPlayer)
+local pgSelf = CreateTab("Self", iconPlayer)
 local pgTp = CreateTab("Teleport", iconTeleport)
 local pgConfig = CreateTab("Configs", iconConfig)
 
@@ -633,20 +649,22 @@ CreateTitle(pgFarm, "Settings & Speed")
 CreateSlider(pgFarm, "Tween Speed (Approche)", 50, 500, 150, function(v) tweenSpeed = v end)
 CreateSlider(pgFarm, "Distance From Target (Height)", 0, 30, 8, function(v) mobHeight = v end)
 
-CreateTitle(pgFarm, "Combat Assist")
-CreateToggle(pgFarm, "KillAura", false, function(v) killauraEnabled = v; if v then autoFarmMob, autoFarmBoss, autoFarmTower = false, false, false; startCombatLoop() end end)
-CreateSlider(pgFarm, "Attack Radius", 10, 1000, 500, function(v) combatRadius = v end)
+-- --- PAGE SELF (Nouveau Combat Assist + Mouvement) ---
+CreateTitle(pgSelf, "Combat Assist (Aura)")
+CreateToggle(pgSelf, "KillAura (Aura à distance)", false, function(v) killauraEnabled = v; if v then autoFarmMob, autoFarmBoss, autoFarmTower = false, false, false; startCombatLoop() end end)
+CreateToggle(pgSelf, "Aura Focus Selected Mob", false, function(v) auraTargetsFarmMob = v; currentTarget = nil end)
+CreateToggle(pgSelf, "Cibler les Joueurs", false, function(v) targetPlayers = v; currentTarget = nil end)
+CreateSlider(pgSelf, "Aura Range (Studs)", 10, 1000, 500, function(v) combatRadius = v end)
 
--- --- PAGE PLAYER ---
-CreateTitle(pgPlayer, "Local Player")
-CreateSlider(pgPlayer, "WalkSpeed", 16, 250, 50, function(v) walkSpeedValue = v; updateSpeed() end)
-CreateToggle(pgPlayer, "Enable WalkSpeed", false, function(v) walkSpeedEnabled = v; updateSpeed() end)
-CreateToggle(pgPlayer, "Infinite Jump", false, function(v) infJumpEnabled = v end)
+CreateTitle(pgSelf, "Local Player")
+CreateSlider(pgSelf, "WalkSpeed", 16, 250, 50, function(v) walkSpeedValue = v; updateSpeed() end)
+CreateToggle(pgSelf, "Enable WalkSpeed", false, function(v) walkSpeedEnabled = v; updateSpeed() end)
+CreateToggle(pgSelf, "Infinite Jump", false, function(v) infJumpEnabled = v end)
 
-CreateTitle(pgPlayer, "Exploits")
-CreateSlider(pgPlayer, "Fly Speed", 10, 300, 50, function(v) flySpeedValue = v end)
-CreateToggle(pgPlayer, "Fly Mode", false, function(v) flyEnabled = v; toggleFly() end)
-CreateToggle(pgPlayer, "No Clip", false, function(v) noClipEnabled = v; if v then enableNoClip() else disableNoClip() end end)
+CreateTitle(pgSelf, "Exploits")
+CreateSlider(pgSelf, "Fly Speed", 10, 300, 50, function(v) flySpeedValue = v end)
+CreateToggle(pgSelf, "Fly Mode", false, function(v) flyEnabled = v; toggleFly() end)
+CreateToggle(pgSelf, "No Clip", false, function(v) noClipEnabled = v; if v then enableNoClip() else disableNoClip() end end)
 
 -- --- PAGE TELEPORT ---
 CreateTitle(pgTp, "World Travel (Islands)")
