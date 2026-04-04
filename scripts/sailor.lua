@@ -1,6 +1,6 @@
 -- ======================================================
--- 👑 MxF HUB - SPEED HUB X EDITION (FINAL V10)
--- Long Range Aura, Target Players, Onglet "Self"
+-- 👑 MxF HUB - SPEED HUB X EDITION (FINAL V11)
+-- Auto-Equip, Anti-Reach Bypass (Backstab), Vrai Clic (M1)
 -- ======================================================
 
 local Players = game:GetService("Players")
@@ -79,7 +79,7 @@ local isOnRightIsland = false
 local selectedSkill = "All"
 local autoSkillEnabled = false
 local targetPlayers = false
-local auraTargetsFarmMob = false -- Nouvelle variable Aura
+local auraTargetsFarmMob = false 
 local mobHeight, tweenSpeed, combatCooldown, combatRadius = 8, 150, 0.1, 500
 local combatCoroutine, currentTarget = nil, nil
 
@@ -103,7 +103,7 @@ local function safeLerpTP(targetCFrame)
 	if not root then return end
 	
 	local dist = (root.Position - targetCFrame.Position).Magnitude
-	local steps = math.ceil(dist / 35) -- Micro-sauts de 35 studs pour éviter le flag anti-cheat
+	local steps = math.ceil(dist / 35)
 	
 	if steps > 0 then
 		for i = 1, steps do
@@ -167,7 +167,6 @@ local function getTarget(targetName, isSpecific)
 		end
 	end
 	
-	-- Cible aussi les joueurs si la case est cochée
 	if targetPlayers and targetName ~= "NearestTower" then
 		for _, p in ipairs(Players:GetPlayers()) do
 			if p ~= player and p.Character then
@@ -184,6 +183,7 @@ local function getTarget(targetName, isSpecific)
 	return closest, minDist
 end
 
+-- ✅ CORRECTION DES DEGATS (Auto Equip + M1 + Backstab)
 local function startCombatLoop()
 	if combatCoroutine then task.cancel(combatCoroutine) end
 	combatCoroutine = task.spawn(function()
@@ -193,6 +193,13 @@ local function startCombatLoop()
 			if char and char:FindFirstChild("HumanoidRootPart") then
 				local root = char.HumanoidRootPart
 				local hum = char.Humanoid
+				
+				-- Auto-Equip de l'arme
+				pcall(function()
+					for _, tool in ipairs(player.Backpack:GetChildren()) do
+						if tool:IsA("Tool") then hum:EquipTool(tool) end
+					end
+				end)
 				
 				if autoFarmMob or autoFarmBoss or autoFarmTower then
 					hum.PlatformStand = true
@@ -214,7 +221,11 @@ local function startCombatLoop()
 						else
 							root.Velocity, root.RotVelocity = Vector3.zero, Vector3.zero
 							root.CFrame = targetCFrame
+							
 							pcall(function() remote:FireServer() end)
+							VIM:SendMouseButtonEvent(0, 0, 0, true, game, 0)
+							task.wait(0.02)
+							VIM:SendMouseButtonEvent(0, 0, 0, false, game, 0)
 						end
 					else 
 						if not autoFarmTower then
@@ -232,15 +243,20 @@ local function startCombatLoop()
 				elseif killauraEnabled then
 					if not flyEnabled then hum.PlatformStand = false end
 					
-					-- ✅ Gère la distance et le focus de l'Aura
 					local tName = auraTargetsFarmMob and selectedMob or nil
-					local target, _ = getTarget(tName, auraTargetsFarmMob)
+					local target, dist = getTarget(tName, auraTargetsFarmMob)
 					currentTarget = target
 					
 					if target and target:FindFirstChild("HumanoidRootPart") then
-						-- Se tourne vers la cible de loin et envoie la frappe à distance !
-						root.CFrame = CFrame.lookAt(root.Position, Vector3.new(target.HumanoidRootPart.Position.X, root.Position.Y, target.HumanoidRootPart.Position.Z))
+						-- ✅ TP dans le dos du monstre pour Bypass l'Anti-Reach
+						local backCFrame = target.HumanoidRootPart.CFrame * CFrame.new(0, 0, 3.5)
+						root.CFrame = CFrame.lookAt(backCFrame.Position, target.HumanoidRootPart.Position)
+						
+						-- Envoi des dégâts
 						pcall(function() remote:FireServer() end)
+						VIM:SendMouseButtonEvent(0, 0, 0, true, game, 0)
+						task.wait(0.02)
+						VIM:SendMouseButtonEvent(0, 0, 0, false, game, 0)
 					end
 				end
 			end
@@ -649,7 +665,7 @@ CreateTitle(pgFarm, "Settings & Speed")
 CreateSlider(pgFarm, "Tween Speed (Approche)", 50, 500, 150, function(v) tweenSpeed = v end)
 CreateSlider(pgFarm, "Distance From Target (Height)", 0, 30, 8, function(v) mobHeight = v end)
 
--- --- PAGE SELF (Nouveau Combat Assist + Mouvement) ---
+-- --- PAGE SELF ---
 CreateTitle(pgSelf, "Combat Assist (Aura)")
 CreateToggle(pgSelf, "KillAura (Aura à distance)", false, function(v) killauraEnabled = v; if v then autoFarmMob, autoFarmBoss, autoFarmTower = false, false, false; startCombatLoop() end end)
 CreateToggle(pgSelf, "Aura Focus Selected Mob", false, function(v) auraTargetsFarmMob = v; currentTarget = nil end)
