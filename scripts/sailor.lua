@@ -1,6 +1,6 @@
 -- ======================================================
--- 👑 MxF HUB - SPEED HUB X EDITION (V4 - ULTIME)
--- Icônes restaurées, Ciblage Strict, Vrai TP PNJ, UI Bold
+-- 👑 MxF HUB - SPEED HUB X EDITION (V5 - THE ULTIMATE)
+-- Auto Tower (Nearest), Auto Skills, Smart TP, UI Bold
 -- ======================================================
 
 local Players = game:GetService("Players")
@@ -9,6 +9,7 @@ local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local CoreGui = game:GetService("CoreGui")
+local VIM = game:GetService("VirtualInputManager")
 
 local player = Players.LocalPlayer
 local camera = workspace.CurrentCamera
@@ -25,7 +26,6 @@ local UIConfig = {
 	WindowSize = UDim2.new(0, 720, 0, 480),
 }
 
--- Mobs & Bosses
 local MobDatabase = {
 	["AcademyTeacher"] = "Academy", ["Arena Fighter"] = "Lawless", ["Curse"] = "Shinjuku",
 	["DesertBandit"] = "Desert", ["FrostRogue"] = "Snow", ["Hollow"] = "HollowIsland",
@@ -39,7 +39,6 @@ local BossDatabase = {
 	["ThiefBoss"] = "Starter"
 }
 
--- Liste des NPCs
 local NpcNames = {
 	"AizenMovesetNPC", "AizenQuestlineBuff", "AlucardBuyer", "AnosBossSummonerNPC", "AnosBuyerNPC", "AnosQuestNPC", 
 	"ArtifactsUnlocker", "AscendNPC", "AtomicBossSummonerNPC", "AtomicBuyer", "AtomicQuestlineBuff", "BabylonCraftNPC", 
@@ -73,10 +72,11 @@ for b, i in pairs(BossDatabase) do table.insert(BossNames, b); if not table.find
 table.sort(MobNames); table.sort(BossNames); table.sort(IslandNames); table.sort(NpcNames)
 
 local selectedMob, selectedBoss, selectedIsland, selectedNPC = MobNames[1], BossNames[1], IslandNames[1], NpcNames[1]
-local autoFarmMob, autoFarmBoss, killauraEnabled = false, false, false
+local autoFarmMob, autoFarmBoss, autoFarmTower, killauraEnabled = false, false, false, false
+local autoSkills = {Z = false, X = false, C = false, V = false, F = false}
 local targetPlayers = false
 local mobHeight, tweenSpeed, combatCooldown, combatRadius = 8, 150, 0.1, 500
-local combatCoroutine = nil
+local combatCoroutine, currentTarget = nil, nil
 
 -- Player Vars
 local walkSpeedEnabled, walkSpeedValue = false, 50
@@ -93,15 +93,11 @@ end
 
 local function teleportToSpecificNPC(npcName)
 	local targetIsland = NpcIslandMap[npcName] or "Starter"
-	
 	teleportToIsland(targetIsland)
-	
 	task.wait(3) 
-	
 	local npc = workspace:FindFirstChild("ServiceNPCs") and workspace.ServiceNPCs:FindFirstChild(npcName)
 	if npc and npc:FindFirstChild("HumanoidRootPart") then
 		if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-			-- TP final exactement 4 studs devant le PNJ
 			player.Character.HumanoidRootPart.CFrame = npc.HumanoidRootPart.CFrame * CFrame.new(0, 0, -4)
 		end
 	else
@@ -120,8 +116,9 @@ local function getTarget(targetName, isSpecific)
 		for _, obj in ipairs(npcs:GetDescendants()) do
 			if obj:IsA("Model") and not string.find(string.lower(obj.Name), "quest") then
 				local match = true
-				if isSpecific then
-					-- Recherche STRICTE : le nom doit commencer exactement par le nom sélectionné (ex: "Slime" matche "Slime1" mais pas "SuperSlime")
+				if targetName == "NearestTower" then
+					match = true -- Ignore les noms pour la tour
+				elseif isSpecific then
 					if string.sub(obj.Name, 1, #targetName) == targetName then
 						if targetName == "Thief" and string.find(obj.Name, "Boss") then match = false end
 					else
@@ -134,7 +131,7 @@ local function getTarget(targetName, isSpecific)
 					local root = obj:FindFirstChild("HumanoidRootPart")
 					if hum and hum.Health > 0 and root then
 						local dist = (root.Position - myPos).Magnitude
-						if not isSpecific and dist > combatRadius then continue end
+						if not isSpecific and targetName ~= "NearestTower" and dist > combatRadius then continue end
 						if dist < minDist then minDist = dist; closest = obj end
 					end
 				end
@@ -142,7 +139,7 @@ local function getTarget(targetName, isSpecific)
 		end
 	end
 	
-	if targetPlayers and not isSpecific then
+	if targetPlayers and not isSpecific and targetName ~= "NearestTower" then
 		for _, p in ipairs(Players:GetPlayers()) do
 			if p ~= player and p.Character then
 				local hum = p.Character:FindFirstChild("Humanoid")
@@ -162,21 +159,24 @@ local function startCombatLoop()
 	if combatCoroutine then task.cancel(combatCoroutine) end
 	combatCoroutine = task.spawn(function()
 		local remote = ReplicatedStorage:WaitForChild("CombatSystem"):WaitForChild("Remotes"):WaitForChild("RequestHit")
-		while autoFarmMob or autoFarmBoss or killauraEnabled do
+		while autoFarmMob or autoFarmBoss or autoFarmTower or killauraEnabled do
 			local char = player.Character
 			if char and char:FindFirstChild("HumanoidRootPart") then
 				local root = char.HumanoidRootPart
 				local hum = char.Humanoid
 				
-				if autoFarmMob or autoFarmBoss then
+				if autoFarmMob or autoFarmBoss or autoFarmTower then
 					hum.PlatformStand = true
 					root.Velocity, root.RotVelocity = Vector3.zero, Vector3.zero
-					local tName = autoFarmMob and selectedMob or selectedBoss
-					local island = autoFarmMob and MobDatabase[selectedMob] or BossDatabase[selectedBoss]
+					
+					local tName = autoFarmTower and "NearestTower" or (autoFarmMob and selectedMob or selectedBoss)
 					local target, dist = getTarget(tName, true)
+					currentTarget = target
 					
 					if target and target:FindFirstChild("HumanoidRootPart") then
-						if dist > 1500 then teleportToIsland(island); task.wait(2.5)
+						if dist > 1500 and not autoFarmTower then 
+							local island = autoFarmMob and MobDatabase[selectedMob] or BossDatabase[selectedBoss]
+							teleportToIsland(island); task.wait(2.5)
 						else
 							local tpPos = target.HumanoidRootPart.Position + Vector3.new(0, mobHeight, 0)
 							if dist > 15 then
@@ -187,10 +187,16 @@ local function startCombatLoop()
 								pcall(function() remote:FireServer() end)
 							end
 						end
-					else teleportToIsland(island); task.wait(2.5) end
+					else 
+						if not autoFarmTower then
+							local island = autoFarmMob and MobDatabase[selectedMob] or BossDatabase[selectedBoss]
+							teleportToIsland(island); task.wait(2.5) 
+						end
+					end
 				elseif killauraEnabled then
 					if not flyEnabled then hum.PlatformStand = false end
-					local target = getTarget(nil, false)
+					local target, _ = getTarget(nil, false)
+					currentTarget = target
 					if target and target:FindFirstChild("HumanoidRootPart") then
 						root.CFrame = CFrame.lookAt(root.Position, Vector3.new(target.HumanoidRootPart.Position.X, root.Position.Y, target.HumanoidRootPart.Position.Z))
 						pcall(function() remote:FireServer() end)
@@ -202,6 +208,25 @@ local function startCombatLoop()
 		if player.Character and not flyEnabled then player.Character.Humanoid.PlatformStand = false end
 	end)
 end
+
+-- ==========================================
+-- AUTO SKILLS LOOP
+-- ==========================================
+task.spawn(function()
+	while task.wait(0.5) do
+		if currentTarget and currentTarget:FindFirstChild("Humanoid") and currentTarget.Humanoid.Health > 0 and (autoFarmMob or autoFarmBoss or autoFarmTower or killauraEnabled) then
+			local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+			local tRoot = currentTarget:FindFirstChild("HumanoidRootPart")
+			if root and tRoot and (root.Position - tRoot.Position).Magnitude < 40 then
+				if autoSkills.Z then VIM:SendKeyEvent(true, Enum.KeyCode.Z, false, game); task.wait(0.05); VIM:SendKeyEvent(false, Enum.KeyCode.Z, false, game) end
+				if autoSkills.X then VIM:SendKeyEvent(true, Enum.KeyCode.X, false, game); task.wait(0.05); VIM:SendKeyEvent(false, Enum.KeyCode.X, false, game) end
+				if autoSkills.C then VIM:SendKeyEvent(true, Enum.KeyCode.C, false, game); task.wait(0.05); VIM:SendKeyEvent(false, Enum.KeyCode.C, false, game) end
+				if autoSkills.V then VIM:SendKeyEvent(true, Enum.KeyCode.V, false, game); task.wait(0.05); VIM:SendKeyEvent(false, Enum.KeyCode.V, false, game) end
+				if autoSkills.F then VIM:SendKeyEvent(true, Enum.KeyCode.F, false, game); task.wait(0.05); VIM:SendKeyEvent(false, Enum.KeyCode.F, false, game) end
+			end
+		end
+	end
+end)
 
 -- Movements
 local function updateSpeed()
@@ -254,11 +279,11 @@ player.CharacterAdded:Connect(function()
 	if walkSpeedEnabled then updateSpeed() end
 	if noClipEnabled then enableNoClip() end
 	if flyEnabled then toggleFly() end
-	if autoFarmMob or autoFarmBoss or killauraEnabled then startCombatLoop() end
+	if autoFarmMob or autoFarmBoss or autoFarmTower or killauraEnabled then startCombatLoop() end
 end)
 
 -- ==========================================
--- 3. MOTEUR UI
+-- 3. MOTEUR UI (SPEED HUB X REPRODUCTION PROPRE)
 -- ==========================================
 local screenGui = Instance.new("ScreenGui", targetGui)
 screenGui.Name = "MxFHubPremium"
@@ -338,13 +363,11 @@ local function CreateTab(name, iconId)
 	btn.Size = UDim2.new(0.9, 0, 0, 40); btn.BackgroundColor3 = Color3.fromRGB(30, 31, 35); btn.BackgroundTransparency = 1; btn.Text = ""
 	Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 8)
 
-	-- Icônes restaurées et adaptées
 	local icon = Instance.new("ImageLabel", btn)
 	icon.Size = UDim2.new(0, 20, 0, 20); icon.Position = UDim2.new(0, 12, 0.5, -10); icon.Image = "rbxassetid://"..iconId; icon.BackgroundTransparency = 1; icon.ImageColor3 = Color3.fromRGB(200, 200, 200)
 
 	local lbl = Instance.new("TextLabel", btn)
 	lbl.Size = UDim2.new(1, -45, 1, 0); lbl.Position = UDim2.new(0, 40, 0, 0); lbl.BackgroundTransparency = 1; lbl.Text = name
-	-- Écriture plus grosse et en gras (Bold)
 	lbl.TextColor3 = Color3.fromRGB(150, 150, 160); lbl.Font = Enum.Font.GothamBold; lbl.TextSize = 16; lbl.TextXAlignment = Enum.TextXAlignment.Left
 
 	local page = Instance.new("ScrollingFrame", container)
@@ -362,6 +385,21 @@ local function CreateTab(name, iconId)
 	end)
 
 	return page
+end
+
+-- Sous-titres avec barre fine
+local function CreateTitle(page, text)
+	local frame = Instance.new("Frame", page)
+	frame.Size = UDim2.new(1, -10, 0, 35); frame.BackgroundTransparency = 1
+	
+	local lbl = Instance.new("TextLabel", frame)
+	lbl.Size = UDim2.new(1, 0, 1, -5); lbl.BackgroundTransparency = 1; lbl.Text = text
+	lbl.TextColor3 = Color3.fromRGB(255, 255, 255); lbl.Font = Enum.Font.GothamBold; lbl.TextSize = 16; lbl.TextXAlignment = Enum.TextXAlignment.Left
+	
+	local line = Instance.new("Frame", frame)
+	line.Size = UDim2.new(1, 0, 0, 1); line.Position = UDim2.new(0, 0, 1, -2); line.BackgroundColor3 = Color3.fromRGB(50, 50, 60); line.BorderSizePixel = 0
+	
+	return frame
 end
 
 -- Component Helpers
@@ -433,16 +471,14 @@ local function CreateSlider(page, text, min, max, default, callback)
 	RunService.RenderStepped:Connect(function() if dragging then update() end end)
 end
 
-local isBindingAny = false -- Variable globale pour bloquer l'UI pendant qu'on choisit une touche
-
+local isBindingAny = false
 local function CreateKeybind(page, text, defaultKey, callback)
 	local row = CreateRow(page, 50)
 	local currentKey = defaultKey
 	
 	local lbl = Instance.new("TextLabel", row)
 	lbl.Size = UDim2.new(0.5, 0, 1, 0); lbl.Position = UDim2.new(0, 15, 0, 0); lbl.BackgroundTransparency = 1
-	lbl.Text = text; lbl.TextColor3 = Color3.fromRGB(220, 220, 220)
-	lbl.Font = Enum.Font.GothamMedium; lbl.TextSize = 14; lbl.TextXAlignment = Enum.TextXAlignment.Left
+	lbl.Text = text; lbl.TextColor3 = Color3.fromRGB(220, 220, 220); lbl.Font = Enum.Font.GothamMedium; lbl.TextSize = 14; lbl.TextXAlignment = Enum.TextXAlignment.Left
 
 	local btn = Instance.new("TextButton", row)
 	btn.Size = UDim2.new(0.4, 0, 0, 32); btn.Position = UDim2.new(1, -15, 0.5, -16); btn.AnchorPoint = Vector2.new(1, 0)
@@ -463,7 +499,7 @@ local function CreateKeybind(page, text, defaultKey, callback)
 			btn.Text = currentKey.Name
 			btn.TextColor3 = Color3.fromRGB(200, 200, 200)
 			isBinding = false
-			task.wait(0.1) -- Petit délai pour ne pas fermer le menu instantanément
+			task.wait(0.1)
 			isBindingAny = false
 			if callback then callback(currentKey) end
 		end
@@ -540,7 +576,6 @@ end)
 -- 4. CONSTRUCTION DU HUB
 -- ==========================================
 
--- IDs Icones (Matérial Design)
 local iconFarm = "7733674079"
 local iconPlayer = "7733954760"
 local iconTeleport = "7733992829"
@@ -552,33 +587,52 @@ local pgTp = CreateTab("Teleport", iconTeleport)
 local pgConfig = CreateTab("Configs", iconConfig)
 
 -- --- PAGE FARM ---
+CreateTitle(pgFarm, "Combat Target")
 CreateDropdown(pgFarm, "Select Monster", MobNames, selectedMob, function(v) selectedMob = v end)
-CreateToggle(pgFarm, "Auto Farm Monster", false, function(v) autoFarmMob = v; if v then autoFarmBoss, killauraEnabled = false, false; startCombatLoop() end end)
+CreateToggle(pgFarm, "Auto Farm Monster", false, function(v) autoFarmMob = v; if v then autoFarmBoss, autoFarmTower, killauraEnabled = false, false, false; startCombatLoop() end end)
 CreateDropdown(pgFarm, "Select Boss", BossNames, selectedBoss, function(v) selectedBoss = v end)
-CreateToggle(pgFarm, "Auto Farm Boss", false, function(v) autoFarmBoss = v; if v then autoFarmMob, killauraEnabled = false, false; startCombatLoop() end end)
+CreateToggle(pgFarm, "Auto Farm Boss", false, function(v) autoFarmBoss = v; if v then autoFarmMob, autoFarmTower, killauraEnabled = false, false, false; startCombatLoop() end end)
 
+CreateTitle(pgFarm, "Tower & Nearest")
+CreateToggle(pgFarm, "Auto Farm Nearest (Tower)", false, function(v) autoFarmTower = v; if v then autoFarmMob, autoFarmBoss, killauraEnabled = false, false, false; startCombatLoop() end end)
+
+CreateTitle(pgFarm, "Auto Skills")
+CreateToggle(pgFarm, "Auto Use Z", false, function(v) autoSkills.Z = v end)
+CreateToggle(pgFarm, "Auto Use X", false, function(v) autoSkills.X = v end)
+CreateToggle(pgFarm, "Auto Use C", false, function(v) autoSkills.C = v end)
+CreateToggle(pgFarm, "Auto Use V", false, function(v) autoSkills.V = v end)
+CreateToggle(pgFarm, "Auto Use F", false, function(v) autoSkills.F = v end)
+
+CreateTitle(pgFarm, "Settings & Speed")
 CreateSlider(pgFarm, "Tween Speed (Approche)", 50, 500, 150, function(v) tweenSpeed = v end)
 CreateSlider(pgFarm, "Distance From Target (Height)", 0, 30, 8, function(v) mobHeight = v end)
 
-CreateToggle(pgFarm, "KillAura", false, function(v) killauraEnabled = v; if v then autoFarmMob, autoFarmBoss = false, false; startCombatLoop() end end)
+CreateTitle(pgFarm, "Combat Assist")
+CreateToggle(pgFarm, "KillAura", false, function(v) killauraEnabled = v; if v then autoFarmMob, autoFarmBoss, autoFarmTower = false, false, false; startCombatLoop() end end)
 CreateSlider(pgFarm, "Attack Radius", 10, 1000, 500, function(v) combatRadius = v end)
 
 -- --- PAGE PLAYER ---
+CreateTitle(pgPlayer, "Local Player")
 CreateSlider(pgPlayer, "WalkSpeed", 16, 250, 50, function(v) walkSpeedValue = v; updateSpeed() end)
 CreateToggle(pgPlayer, "Enable WalkSpeed", false, function(v) walkSpeedEnabled = v; updateSpeed() end)
 CreateToggle(pgPlayer, "Infinite Jump", false, function(v) infJumpEnabled = v end)
+
+CreateTitle(pgPlayer, "Exploits")
 CreateSlider(pgPlayer, "Fly Speed", 10, 300, 50, function(v) flySpeedValue = v end)
 CreateToggle(pgPlayer, "Fly Mode", false, function(v) flyEnabled = v; toggleFly() end)
 CreateToggle(pgPlayer, "No Clip", false, function(v) noClipEnabled = v; if v then enableNoClip() else disableNoClip() end end)
 
 -- --- PAGE TELEPORT ---
+CreateTitle(pgTp, "World Travel (Islands)")
 CreateDropdown(pgTp, "Select Island", IslandNames, selectedIsland, function(v) selectedIsland = v end)
 CreateButton(pgTp, "Teleport to Island", function() teleportToIsland(selectedIsland) end)
 
+CreateTitle(pgTp, "NPC Teleport")
 CreateDropdown(pgTp, "Select NPC", NpcNames, selectedNPC, function(v) selectedNPC = v end)
 CreateButton(pgTp, "Teleport to NPC", function() teleportToSpecificNPC(selectedNPC) end)
 
 -- --- PAGE CONFIGS ---
+CreateTitle(pgConfig, "Menu Settings")
 CreateKeybind(pgConfig, "Toggle UI Key", UIConfig.ToggleKey, function(newKey) UIConfig.ToggleKey = newKey end)
 CreateSlider(pgConfig, "Menu Opacity", 10, 100, 80, function(v) mainFrame.BackgroundTransparency = 1 - (v/100) end)
 CreateButton(pgConfig, "Unload Interface", function() if targetGui:FindFirstChild("MxFHubPremium") then targetGui.MxFHubPremium:Destroy() end end)
@@ -598,8 +652,4 @@ end)
 
 -- Init
 navList:GetChildren()[2].MouseButton1Click:Fire()
-print("MxF Hub!")
-
--- Init
-navList:GetChildren()[2].MouseButton1Click:Fire()
-print("MxF Hub!")
+print("MxF Hub The Ultimate Edition Chargé !")
