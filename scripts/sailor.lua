@@ -92,26 +92,21 @@ local function teleportToIsland(islandName)
 end
 
 local function teleportToSpecificNPC(npcName)
-	local function tryTP()
-		local npc = workspace:FindFirstChild("ServiceNPCs") and workspace.ServiceNPCs:FindFirstChild(npcName)
-		if npc and npc:FindFirstChild("HumanoidRootPart") then
-			if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-				-- On TP le joueur exactement 4 studs devant le PNJ
-				player.Character.HumanoidRootPart.CFrame = npc.HumanoidRootPart.CFrame * CFrame.new(0, 0, -4)
-				return true
-			end
+	local targetIsland = NpcIslandMap[npcName] or "Starter"
+	
+	teleportToIsland(targetIsland)
+	
+	task.wait(3) 
+	
+	local npc = workspace:FindFirstChild("ServiceNPCs") and workspace.ServiceNPCs:FindFirstChild(npcName)
+	if npc and npc:FindFirstChild("HumanoidRootPart") then
+		if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+			-- TP final exactement 4 studs devant le PNJ
+			player.Character.HumanoidRootPart.CFrame = npc.HumanoidRootPart.CFrame * CFrame.new(0, 0, -4)
 		end
-		return false
+	else
+		print("Erreur : Le NPC " .. npcName .. " n'a pas pu charger à temps.")
 	end
-
-	-- On essaye de TP tout de suite (si l'île est déjà chargée)
-	if tryTP() then return end
-
-	-- Sinon, on TP sur l'île, on attend le rendu du PNJ, et on se TP dessus
-	local guessedIsland = NpcIslandMap[npcName] or "Starter"
-	teleportToIsland(guessedIsland)
-	task.wait(2.5) -- Temps de chargement de la map
-	tryTP()
 end
 
 local function getTarget(targetName, isSpecific)
@@ -263,7 +258,7 @@ player.CharacterAdded:Connect(function()
 end)
 
 -- ==========================================
--- 3. MOTEUR UI (SPEED HUB X REPRODUCTION PROPRE)
+-- 3. MOTEUR UI
 -- ==========================================
 local screenGui = Instance.new("ScreenGui", targetGui)
 screenGui.Name = "MxFHubPremium"
@@ -438,6 +433,43 @@ local function CreateSlider(page, text, min, max, default, callback)
 	RunService.RenderStepped:Connect(function() if dragging then update() end end)
 end
 
+local isBindingAny = false -- Variable globale pour bloquer l'UI pendant qu'on choisit une touche
+
+local function CreateKeybind(page, text, defaultKey, callback)
+	local row = CreateRow(page, 50)
+	local currentKey = defaultKey
+	
+	local lbl = Instance.new("TextLabel", row)
+	lbl.Size = UDim2.new(0.5, 0, 1, 0); lbl.Position = UDim2.new(0, 15, 0, 0); lbl.BackgroundTransparency = 1
+	lbl.Text = text; lbl.TextColor3 = Color3.fromRGB(220, 220, 220)
+	lbl.Font = Enum.Font.GothamMedium; lbl.TextSize = 14; lbl.TextXAlignment = Enum.TextXAlignment.Left
+
+	local btn = Instance.new("TextButton", row)
+	btn.Size = UDim2.new(0.4, 0, 0, 32); btn.Position = UDim2.new(1, -15, 0.5, -16); btn.AnchorPoint = Vector2.new(1, 0)
+	btn.BackgroundColor3 = Color3.fromRGB(30, 31, 35); btn.Text = currentKey.Name; btn.TextColor3 = Color3.fromRGB(200, 200, 200)
+	btn.Font = Enum.Font.GothamBold; btn.TextSize = 12; Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
+	Instance.new("UIStroke", btn).Color = Color3.fromRGB(45, 45, 50)
+
+	local isBinding = false
+	btn.MouseButton1Click:Connect(function()
+		isBinding = true; isBindingAny = true
+		btn.Text = "Press Key..."
+		btn.TextColor3 = UIConfig.Accent
+	end)
+
+	UIS.InputBegan:Connect(function(input)
+		if isBinding and input.UserInputType == Enum.UserInputType.Keyboard then
+			currentKey = input.KeyCode
+			btn.Text = currentKey.Name
+			btn.TextColor3 = Color3.fromRGB(200, 200, 200)
+			isBinding = false
+			task.wait(0.1) -- Petit délai pour ne pas fermer le menu instantanément
+			isBindingAny = false
+			if callback then callback(currentKey) end
+		end
+	end)
+end
+
 local function CreateDropdown(page, text, options, default, callback)
 	local current = default or options[1]
 	local row = CreateRow(page, 50); row.ClipsDescendants = true
@@ -511,7 +543,7 @@ end)
 -- IDs Icones (Matérial Design)
 local iconFarm = "7733674079"
 local iconPlayer = "7733954760"
-local iconTeleport = "7733956484"
+local iconTeleport = "7733992829"
 local iconConfig = "7734068321"
 
 local pgFarm = CreateTab("Farm", iconFarm)
@@ -547,6 +579,7 @@ CreateDropdown(pgTp, "Select NPC", NpcNames, selectedNPC, function(v) selectedNP
 CreateButton(pgTp, "Teleport to NPC", function() teleportToSpecificNPC(selectedNPC) end)
 
 -- --- PAGE CONFIGS ---
+CreateKeybind(pgConfig, "Toggle UI Key", UIConfig.ToggleKey, function(newKey) UIConfig.ToggleKey = newKey end)
 CreateSlider(pgConfig, "Menu Opacity", 10, 100, 80, function(v) mainFrame.BackgroundTransparency = 1 - (v/100) end)
 CreateButton(pgConfig, "Unload Interface", function() if targetGui:FindFirstChild("MxFHubPremium") then targetGui.MxFHubPremium:Destroy() end end)
 
@@ -556,6 +589,16 @@ local topDrag = Instance.new("TextButton", mainFrame); topDrag.Size = UDim2.new(
 topDrag.InputBegan:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 then dragS = true; dragP = input.Position; startP = mainFrame.Position end end)
 UIS.InputChanged:Connect(function(input) if dragS and input.UserInputType == Enum.UserInputType.MouseMovement then local delta = input.Position - dragP; mainFrame.Position = UDim2.new(startP.X.Scale, startP.X.Offset + delta.X, startP.Y.Scale, startP.Y.Offset + delta.Y) end end)
 UIS.InputEnded:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 then dragS = false end end)
+
+UIS.InputBegan:Connect(function(input, gp) 
+	if not gp and input.KeyCode == UIConfig.ToggleKey and not isBindingAny then 
+		mainFrame.Visible = not mainFrame.Visible 
+	end 
+end)
+
+-- Init
+navList:GetChildren()[2].MouseButton1Click:Fire()
+print("MxF Hub SpeedX Edition Chargé !")
 
 -- Init
 navList:GetChildren()[2].MouseButton1Click:Fire()
