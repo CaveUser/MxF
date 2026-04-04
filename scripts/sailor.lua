@@ -1,6 +1,6 @@
 -- ======================================================
--- 👑 MxF HUB - ULTIMATE SPEED EDITION
--- Glassmorphism, Search Bar, Smart Farm, Professional UI
+-- 👑 MxF HUB - SPEED HUB X EDITION (V2)
+-- UI Agrandie, Dropdowns Fixés, Lignes de séparation
 -- ======================================================
 
 local Players = game:GetService("Players")
@@ -22,7 +22,7 @@ if targetGui:FindFirstChild("MxFHubPremium") then targetGui.MxFHubPremium:Destro
 local UIConfig = {
 	Accent = Color3.fromRGB(255, 255, 255),
 	ToggleKey = Enum.KeyCode.Insert,
-	WindowSize = UDim2.new(0, 650, 0, 400),
+	WindowSize = UDim2.new(0, 720, 0, 480), -- Menu plus grand
 }
 
 local MobDatabase = {
@@ -52,25 +52,13 @@ local combatCoroutine = nil
 local walkSpeedEnabled, walkSpeedValue = false, 50
 local flyEnabled, flySpeedValue = false, 50
 local infJumpEnabled, noClipEnabled = false, false
-local bodyVelocity, bodyGyro, speedConn, flyConn, clipConn
+local bodyVelocity, bodyGyro, speedConn, flyConn, noClipConn
 
 -- ==========================================
 -- 2. BACK-END LOGIC
 -- ==========================================
 local function teleportToIsland(islandName)
 	pcall(function() ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("TeleportToPortal"):FireServer(islandName) end)
-end
-
-local function isMobRendered(targetName)
-	local npcs = workspace:FindFirstChild("NPCs")
-	if not npcs then return false end
-	for _, obj in ipairs(npcs:GetDescendants()) do
-		if obj:IsA("Model") and string.find(obj.Name, targetName) then
-			if targetName == "Thief" and string.find(obj.Name, "Boss") then continue end
-			if obj:FindFirstChild("HumanoidRootPart") then return true end
-		end
-	end
-	return false
 end
 
 local function getTarget(targetName, isSpecific)
@@ -155,6 +143,17 @@ end
 
 UIS.JumpRequest:Connect(function() if infJumpEnabled and player.Character then player.Character.Humanoid:ChangeState(Enum.HumanoidStateType.Jumping) end end)
 
+local function enableNoClip()
+	if noClipConn then noClipConn:Disconnect() end
+	noClipConn = RunService.Stepped:Connect(function()
+		if player.Character then for _, p in ipairs(player.Character:GetDescendants()) do if p:IsA("BasePart") then p.CanCollide = false end end end
+	end)
+end
+local function disableNoClip()
+	if noClipConn then noClipConn:Disconnect() noClipConn = nil end
+	if player.Character then for _, p in ipairs(player.Character:GetDescendants()) do if p:IsA("BasePart") then p.CanCollide = true end end end
+end
+
 local function toggleFly()
 	if flyConn then flyConn:Disconnect() end
 	if bodyVelocity then bodyVelocity:Destroy() bodyVelocity = nil end
@@ -180,17 +179,26 @@ local function toggleFly()
 	end)
 end
 
+player.CharacterAdded:Connect(function()
+	if flyConn then flyConn:Disconnect() flyConn = nil end
+	task.wait(0.5)
+	if walkSpeedEnabled then updateSpeed() end
+	if noClipEnabled then enableNoClip() end
+	if flyEnabled then toggleFly() end
+	if autoFarmMob or autoFarmBoss or killauraEnabled then startCombatLoop() end
+end)
+
 -- ==========================================
--- 3. MOTEUR UI (SPEED HUB X REPRODUCTION)
+-- 3. MOTEUR UI "SPEED HUB X" (AGRANDI & PROPRE)
 -- ==========================================
 local screenGui = Instance.new("ScreenGui", targetGui)
 screenGui.Name = "MxFHubPremium"
 
 local mainFrame = Instance.new("Frame", screenGui)
 mainFrame.Size = UIConfig.WindowSize
-mainFrame.Position = UDim2.new(0.5, -310, 0.5, -200)
+mainFrame.Position = UDim2.new(0.5, -360, 0.5, -240)
 mainFrame.BackgroundColor3 = Color3.fromRGB(15, 16, 20)
-mainFrame.BackgroundTransparency = 0.2 -- Transparence
+mainFrame.BackgroundTransparency = 0.15 -- Look Glassmorphism
 mainFrame.BorderSizePixel = 0
 Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 10)
 local stroke = Instance.new("UIStroke", mainFrame)
@@ -198,138 +206,168 @@ stroke.Color = Color3.fromRGB(45, 45, 50); stroke.Thickness = 1.2
 
 -- Sidebar
 local sidebar = Instance.new("Frame", mainFrame)
-sidebar.Size = UDim2.new(0, 180, 1, 0)
+sidebar.Size = UDim2.new(0, 200, 1, 0)
 sidebar.BackgroundColor3 = Color3.fromRGB(10, 11, 14)
-sidebar.BackgroundTransparency = 0.3
+sidebar.BackgroundTransparency = 0.4
 sidebar.BorderSizePixel = 0
 Instance.new("UICorner", sidebar).CornerRadius = UDim.new(0, 10)
 
--- Logo MxF
+-- Logo MxF via le lien
 local logoImg = Instance.new("ImageLabel", sidebar)
-logoImg.Size = UDim2.new(0, 35, 0, 35); logoImg.Position = UDim2.new(0, 15, 0, 15)
-logoImg.BackgroundTransparency = 1
+logoImg.Size = UDim2.new(0, 40, 0, 40); logoImg.Position = UDim2.new(0, 15, 0, 15)
+logoImg.BackgroundTransparency = 1; logoImg.ScaleType = Enum.ScaleType.Fit
 pcall(function()
-	local githubRaw = "https://raw.githubusercontent.com/CaveUser/MxF/main/scripts/mxf.png" -- ⚠️ METS TON LIEN RAW ICI
-	if githubRaw ~= "https://raw.githubusercontent.com/CaveUser/MxF/main/scripts/mxf.png" and writefile then
-		local data = game:HttpGet(githubRaw)
-		writefile("mxf.png", data)
-		logoImg.Image = getcustomasset("mxf.png")
+	local logoUrl = "https://i.goopics.net/lpt7p1.png"
+	if writefile and getcustomasset then
+		local data = game:HttpGet(logoUrl)
+		writefile("mxf_logo.png", data)
+		logoImg.Image = getcustomasset("mxf_logo.png")
 	else
-		logoImg.Image = "rbxassetid://6026568227"
+		logoImg.Image = "rbxassetid://6026568227" -- Secours
 	end
 end)
 
 local hubName = Instance.new("TextLabel", sidebar)
-hubName.Size = UDim2.new(1, -60, 0, 35); hubName.Position = UDim2.new(0, 55, 0, 15)
+hubName.Size = UDim2.new(1, -70, 0, 40); hubName.Position = UDim2.new(0, 65, 0, 15)
 hubName.BackgroundTransparency = 1; hubName.Text = "MxF HUB"; hubName.TextColor3 = Color3.fromRGB(255, 255, 255)
-hubName.Font = Enum.Font.GothamBold; hubName.TextSize = 16; hubName.TextXAlignment = Enum.TextXAlignment.Left
+hubName.Font = Enum.Font.GothamBold; hubName.TextSize = 18; hubName.TextXAlignment = Enum.TextXAlignment.Left
 
--- Barre de recherche
+-- Search Bar
 local searchFrame = Instance.new("Frame", sidebar)
-searchFrame.Size = UDim2.new(1, -20, 0, 30); searchFrame.Position = UDim2.new(0, 10, 0, 60)
+searchFrame.Size = UDim2.new(1, -30, 0, 36); searchFrame.Position = UDim2.new(0, 15, 0, 70)
 searchFrame.BackgroundColor3 = Color3.fromRGB(25, 26, 30); Instance.new("UICorner", searchFrame).CornerRadius = UDim.new(0, 6)
 
 local searchIcon = Instance.new("ImageLabel", searchFrame)
-searchIcon.Size = UDim2.new(0, 16, 0, 16); searchIcon.Position = UDim2.new(0, 8, 0.5, -8)
-searchIcon.Image = "rbxassetid://6031154871"; searchIcon.BackgroundTransparency = 1; searchIcon.ImageColor3 = Color3.fromRGB(150, 150, 150)
+searchIcon.Size = UDim2.new(0, 18, 0, 18); searchIcon.Position = UDim2.new(0, 10, 0.5, -9)
+searchIcon.Image = "rbxassetid://7733654492"; searchIcon.BackgroundTransparency = 1; searchIcon.ImageColor3 = Color3.fromRGB(150, 150, 150)
 
 local searchBox = Instance.new("TextBox", searchFrame)
-searchBox.Size = UDim2.new(1, -30, 1, 0); searchBox.Position = UDim2.new(0, 30, 0, 0)
+searchBox.Size = UDim2.new(1, -40, 1, 0); searchBox.Position = UDim2.new(0, 35, 0, 0)
 searchBox.BackgroundTransparency = 1; searchBox.PlaceholderText = "Search..."; searchBox.Text = ""
-searchBox.TextColor3 = Color3.fromRGB(255, 255, 255); searchBox.Font = Enum.Font.Gotham; searchBox.TextSize = 12; searchBox.TextXAlignment = Enum.TextXAlignment.Left
+searchBox.TextColor3 = Color3.fromRGB(255, 255, 255); searchBox.Font = Enum.Font.GothamMedium; searchBox.TextSize = 14; searchBox.TextXAlignment = Enum.TextXAlignment.Left
 
--- Navigation
+-- Navigation Tabs
 local navList = Instance.new("ScrollingFrame", sidebar)
-navList.Size = UDim2.new(1, 0, 1, -100); navList.Position = UDim2.new(0, 0, 0, 100)
+navList.Size = UDim2.new(1, 0, 1, -120); navList.Position = UDim2.new(0, 0, 0, 120)
 navList.BackgroundTransparency = 1; navList.ScrollBarThickness = 0
-local navLayout = Instance.new("UIListLayout", navList); navLayout.Padding = UDim.new(0, 5); navLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+local navLayout = Instance.new("UIListLayout", navList); navLayout.Padding = UDim.new(0, 6); navLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 
--- Content
+-- Main Content Area
 local container = Instance.new("Frame", mainFrame)
-container.Size = UDim2.new(1, -190, 1, -20); container.Position = UDim2.new(0, 185, 0, 10)
+container.Size = UDim2.new(1, -210, 1, -20); container.Position = UDim2.new(0, 205, 0, 10)
 container.BackgroundTransparency = 1
 
 local activeTabName = Instance.new("TextLabel", container)
-activeTabName.Size = UDim2.new(1, 0, 0, 40); activeTabName.BackgroundTransparency = 1; activeTabName.Text = "Home"
-activeTabName.TextColor3 = Color3.fromRGB(255, 255, 255); activeTabName.Font = Enum.Font.GothamBold; activeTabName.TextSize = 22; activeTabName.TextXAlignment = Enum.TextXAlignment.Left
+activeTabName.Size = UDim2.new(1, 0, 0, 45); activeTabName.BackgroundTransparency = 1; activeTabName.Text = "Home"
+activeTabName.TextColor3 = Color3.fromRGB(255, 255, 255); activeTabName.Font = Enum.Font.GothamBold; activeTabName.TextSize = 26; activeTabName.TextXAlignment = Enum.TextXAlignment.Left
 
 local Pages = {}
 local currentTab = nil
 
 local function CreateTab(name, iconId)
 	local btn = Instance.new("TextButton", navList)
-	btn.Size = UDim2.new(0.9, 0, 0, 35); btn.BackgroundColor3 = Color3.fromRGB(30, 31, 35); btn.BackgroundTransparency = 1; btn.Text = ""
-	Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
+	btn.Size = UDim2.new(0.9, 0, 0, 40); btn.BackgroundColor3 = Color3.fromRGB(30, 31, 35); btn.BackgroundTransparency = 1; btn.Text = ""
+	Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 8)
 
 	local icon = Instance.new("ImageLabel", btn)
-	icon.Size = UDim2.new(0, 18, 0, 18); icon.Position = UDim2.new(0, 10, 0.5, -9); icon.Image = "rbxassetid://"..iconId; icon.BackgroundTransparency = 1; icon.ImageColor3 = Color3.fromRGB(200, 200, 200)
+	icon.Size = UDim2.new(0, 20, 0, 20); icon.Position = UDim2.new(0, 12, 0.5, -10); icon.Image = "rbxassetid://"..iconId; icon.BackgroundTransparency = 1; icon.ImageColor3 = Color3.fromRGB(200, 200, 200)
 
 	local lbl = Instance.new("TextLabel", btn)
-	lbl.Size = UDim2.new(1, -40, 1, 0); lbl.Position = UDim2.new(0, 35, 0, 0); lbl.BackgroundTransparency = 1; lbl.Text = name
-	lbl.TextColor3 = Color3.fromRGB(150, 150, 160); lbl.Font = Enum.Font.GothamMedium; lbl.TextSize = 13; lbl.TextXAlignment = Enum.TextXAlignment.Left
+	lbl.Size = UDim2.new(1, -45, 1, 0); lbl.Position = UDim2.new(0, 40, 0, 0); lbl.BackgroundTransparency = 1; lbl.Text = name
+	lbl.TextColor3 = Color3.fromRGB(150, 150, 160); lbl.Font = Enum.Font.GothamMedium; lbl.TextSize = 15; lbl.TextXAlignment = Enum.TextXAlignment.Left
 
 	local page = Instance.new("ScrollingFrame", container)
-	page.Size = UDim2.new(1, 0, 1, -50); page.Position = UDim2.new(0, 0, 0, 50); page.BackgroundTransparency = 1; page.ScrollBarThickness = 2; page.Visible = false
-	local pageLayout = Instance.new("UIListLayout", page); pageLayout.Padding = UDim.new(0, 8)
-	pageLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function() page.CanvasSize = UDim2.new(0, 0, 0, pageLayout.AbsoluteContentSize.Y + 20) end)
+	page.Size = UDim2.new(1, 0, 1, -55); page.Position = UDim2.new(0, 0, 0, 55); page.BackgroundTransparency = 1; page.ScrollBarThickness = 2; page.Visible = false
+	local pageLayout = Instance.new("UIListLayout", page); pageLayout.Padding = UDim.new(0, 10)
+	
+	-- Mise à jour robuste de la taille de la page pour le scroll
+	local function updateSize() page.CanvasSize = UDim2.new(0, 0, 0, pageLayout.AbsoluteContentSize.Y + 20) end
+	pageLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(updateSize)
 
 	Pages[name] = page
 
 	btn.MouseButton1Click:Connect(function()
 		for n, p in pairs(Pages) do p.Visible = (n == name) end
-		if currentTab then TweenService:Create(currentTab.btn, TweenInfo.new(0.2), {BackgroundTransparency = 1}):Play() end
-		TweenService:Create(btn, TweenInfo.new(0.2), {BackgroundTransparency = 0}):Play()
-		activeTabName.Text = name; currentTab = {btn = btn, page = page}
+		if currentTab then TweenService:Create(currentTab.btn, TweenInfo.new(0.2), {BackgroundTransparency = 1}):Play(); currentTab.lbl.TextColor3 = Color3.fromRGB(150, 150, 160) end
+		TweenService:Create(btn, TweenInfo.new(0.2), {BackgroundTransparency = 0}):Play(); lbl.TextColor3 = Color3.fromRGB(255, 255, 255)
+		activeTabName.Text = name; currentTab = {btn = btn, lbl = lbl, page = page}
 	end)
 
 	return page
 end
 
+-- Sous-titres avec barre fine
+local function CreateTitle(page, text)
+	local frame = Instance.new("Frame", page)
+	frame.Size = UDim2.new(1, -10, 0, 35); frame.BackgroundTransparency = 1
+	
+	local lbl = Instance.new("TextLabel", frame)
+	lbl.Size = UDim2.new(1, 0, 1, -5); lbl.BackgroundTransparency = 1; lbl.Text = text
+	lbl.TextColor3 = Color3.fromRGB(255, 255, 255); lbl.Font = Enum.Font.GothamBold; lbl.TextSize = 16; lbl.TextXAlignment = Enum.TextXAlignment.Left
+	
+	local line = Instance.new("Frame", frame)
+	line.Size = UDim2.new(1, 0, 0, 1); line.Position = UDim2.new(0, 0, 1, -2); line.BackgroundColor3 = Color3.fromRGB(50, 50, 60); line.BorderSizePixel = 0
+	
+	return frame
+end
+
 -- Component Helpers
-local function CreateRow(page, text)
+local function CreateRow(page, height)
 	local row = Instance.new("Frame", page)
-	row.Size = UDim2.new(1, -10, 0, 45); row.BackgroundColor3 = Color3.fromRGB(22, 23, 27); row.BackgroundTransparency = 0.3
-	Instance.new("UICorner", row).CornerRadius = UDim.new(0, 6)
+	row.Size = UDim2.new(1, -10, 0, height or 50); row.BackgroundColor3 = Color3.fromRGB(22, 23, 27); row.BackgroundTransparency = 0.2
+	Instance.new("UICorner", row).CornerRadius = UDim.new(0, 8)
 	Instance.new("UIStroke", row).Color = Color3.fromRGB(40, 40, 45)
-	
-	local lbl = Instance.new("TextLabel", row)
-	lbl.Size = UDim2.new(0.6, 0, 1, 0); lbl.Position = UDim2.new(0, 15, 0, 0); lbl.BackgroundTransparency = 1
-	lbl.Text = text; lbl.TextColor3 = Color3.fromRGB(220, 220, 220); lbl.Font = Enum.Font.GothamMedium; lbl.TextSize = 13; lbl.TextXAlignment = Enum.TextXAlignment.Left
-	
-	return row, lbl
+	return row
 end
 
 local function CreateToggle(page, text, default, callback)
-	local row, lbl = CreateRow(page, text)
+	local row = CreateRow(page, 50)
 	local state = default
 	
-	local btn = Instance.new("TextButton", row)
-	btn.Size = UDim2.new(0, 36, 0, 20); btn.Position = UDim2.new(1, -50, 0.5, -10); btn.BackgroundColor3 = state and Color3.fromRGB(255,255,255) or Color3.fromRGB(50,50,55); btn.Text = ""
-	Instance.new("UICorner", btn).CornerRadius = UDim.new(1, 0)
+	local lbl = Instance.new("TextLabel", row)
+	lbl.Size = UDim2.new(0.7, 0, 1, 0); lbl.Position = UDim2.new(0, 15, 0, 0); lbl.BackgroundTransparency = 1
+	lbl.Text = text; lbl.TextColor3 = Color3.fromRGB(220, 220, 220); lbl.Font = Enum.Font.GothamMedium; lbl.TextSize = 14; lbl.TextXAlignment = Enum.TextXAlignment.Left
 	
-	local dot = Instance.new("Frame", btn)
-	dot.Size = UDim2.new(0, 14, 0, 14); dot.Position = state and UDim2.new(1, -17, 0.5, -7) or UDim2.new(0, 3, 0.5, -7); dot.BackgroundColor3 = state and Color3.fromRGB(0,0,0) or Color3.fromRGB(255,255,255)
-	Instance.new("UICorner", dot).CornerRadius = UDim.new(1, 0)
+	local btn = Instance.new("TextButton", row)
+	btn.Size = UDim2.new(1, 0, 1, 0); btn.BackgroundTransparency = 1; btn.Text = ""
+
+	local pill = Instance.new("Frame", row)
+	pill.Size = UDim2.new(0, 42, 0, 24); pill.Position = UDim2.new(1, -55, 0.5, -12)
+	pill.BackgroundColor3 = state and UIConfig.Accent or Color3.fromRGB(45, 46, 50)
+	Instance.new("UICorner", pill).CornerRadius = UDim.new(1, 0)
+
+	local circle = Instance.new("Frame", pill)
+	circle.Size = UDim2.new(0, 18, 0, 18); circle.Position = state and UDim2.new(1, -21, 0.5, -9) or UDim2.new(0, 3, 0.5, -9)
+	circle.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+	Instance.new("UICorner", circle).CornerRadius = UDim.new(1, 0)
 
 	btn.MouseButton1Click:Connect(function()
 		state = not state
-		TweenService:Create(btn, TweenInfo.new(0.2), {BackgroundColor3 = state and Color3.fromRGB(255,255,255) or Color3.fromRGB(50,50,55)}):Play()
-		TweenService:Create(dot, TweenInfo.new(0.2), {Position = state and UDim2.new(1, -17, 0.5, -7) or UDim2.new(0, 3, 0.5, -7), BackgroundColor3 = state and Color3.fromRGB(0,0,0) or Color3.fromRGB(255,255,255)}):Play()
+		local targetColor = state and UIConfig.Accent or Color3.fromRGB(45, 46, 50)
+		local targetPos = state and UDim2.new(1, -21, 0.5, -9) or UDim2.new(0, 3, 0.5, -9)
+		TweenService:Create(pill, TweenInfo.new(0.2), {BackgroundColor3 = targetColor}):Play()
+		TweenService:Create(circle, TweenInfo.new(0.2), {Position = targetPos}):Play()
 		callback(state)
 	end)
 end
 
 local function CreateSlider(page, text, min, max, default, callback)
-	local row, lbl = CreateRow(page, text)
+	local row = CreateRow(page, 60)
+	
+	local lbl = Instance.new("TextLabel", row)
+	lbl.Size = UDim2.new(0.5, 0, 0, 30); lbl.Position = UDim2.new(0, 15, 0, 5); lbl.BackgroundTransparency = 1
+	lbl.Text = text; lbl.TextColor3 = Color3.fromRGB(220, 220, 220); lbl.Font = Enum.Font.GothamMedium; lbl.TextSize = 14; lbl.TextXAlignment = Enum.TextXAlignment.Left
+
 	local valLbl = Instance.new("TextLabel", row)
-	valLbl.Size = UDim2.new(0.3, 0, 1, 0); valLbl.Position = UDim2.new(1, -45, 0, 0); valLbl.BackgroundTransparency = 1; valLbl.Text = tostring(default); valLbl.TextColor3 = Color3.fromRGB(150,150,160); valLbl.Font = Enum.Font.GothamBold; valLbl.TextSize = 12; valLbl.TextXAlignment = Enum.TextXAlignment.Right
+	valLbl.Size = UDim2.new(0.4, 0, 0, 30); valLbl.Position = UDim2.new(1, -55, 0, 5); valLbl.BackgroundTransparency = 1
+	valLbl.Text = tostring(default); valLbl.TextColor3 = UIConfig.Accent; valLbl.Font = Enum.Font.GothamBold; valLbl.TextSize = 13; valLbl.TextXAlignment = Enum.TextXAlignment.Right
 	
 	local sliderBg = Instance.new("TextButton", row)
-	sliderBg.Size = UDim2.new(0.4, 0, 0, 4); sliderBg.Position = UDim2.new(0.5, 0, 0.5, -2); sliderBg.BackgroundColor3 = Color3.fromRGB(50, 50, 55); sliderBg.Text = ""
+	sliderBg.Size = UDim2.new(1, -30, 0, 6); sliderBg.Position = UDim2.new(0, 15, 0, 40); sliderBg.BackgroundColor3 = Color3.fromRGB(50, 50, 55); sliderBg.Text = ""
 	Instance.new("UICorner", sliderBg).CornerRadius = UDim.new(1, 0)
 	
 	local fill = Instance.new("Frame", sliderBg)
-	fill.Size = UDim2.new((default-min)/(max-min), 0, 1, 0); fill.BackgroundColor3 = Color3.fromRGB(255, 255, 255); Instance.new("UICorner", fill).CornerRadius = UDim.new(1, 0)
+	fill.Size = UDim2.new((default-min)/(max-min), 0, 1, 0); fill.BackgroundColor3 = UIConfig.Accent; Instance.new("UICorner", fill).CornerRadius = UDim.new(1, 0)
 	
 	local dragging = false
 	local function update()
@@ -342,71 +380,128 @@ local function CreateSlider(page, text, min, max, default, callback)
 	RunService.RenderStepped:Connect(function() if dragging then update() end end)
 end
 
-local function CreateDropdown(page, text, options, callback)
-	local row, lbl = CreateRow(page, text); row.ClipsDescendants = true
+local function CreateDropdown(page, text, options, default, callback)
+	local current = default or options[1]
+	local row = CreateRow(page, 50); row.ClipsDescendants = true
+
+	local lbl = Instance.new("TextLabel", row)
+	lbl.Size = UDim2.new(0.4, 0, 0, 50); lbl.Position = UDim2.new(0, 15, 0, 0); lbl.BackgroundTransparency = 1
+	lbl.Text = text; lbl.TextColor3 = Color3.fromRGB(220, 220, 220); lbl.Font = Enum.Font.GothamMedium; lbl.TextSize = 14; lbl.TextXAlignment = Enum.TextXAlignment.Left
+
 	local btn = Instance.new("TextButton", row)
-	btn.Size = UDim2.new(0.4, 0, 0, 26); btn.Position = UDim2.new(1, -15, 0.5, -13); btn.AnchorPoint = Vector2.new(1, 0); btn.BackgroundColor3 = Color3.fromRGB(35, 36, 40); btn.Text = "Select..."; btn.TextColor3 = Color3.fromRGB(200,200,200); btn.Font = Enum.Font.Gotham; btn.TextSize = 11; Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 4)
-	
-	local list = Instance.new("Frame", row); list.Size = UDim2.new(1, -20, 0, 0); list.Position = UDim2.new(0, 10, 0, 45); list.BackgroundTransparency = 1; Instance.new("UIListLayout", list).Padding = UDim.new(0, 3)
+	btn.Size = UDim2.new(0.5, 0, 0, 34); btn.Position = UDim2.new(1, -15, 0, 8); btn.AnchorPoint = Vector2.new(1, 0)
+	btn.BackgroundColor3 = Color3.fromRGB(30, 31, 35); btn.Text = ""; Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
+	Instance.new("UIStroke", btn).Color = Color3.fromRGB(45, 45, 50)
+
+	local valTxt = Instance.new("TextLabel", btn)
+	valTxt.Size = UDim2.new(1, -30, 1, 0); valTxt.Position = UDim2.new(0, 10, 0, 0); valTxt.BackgroundTransparency = 1
+	valTxt.Text = tostring(current); valTxt.TextColor3 = Color3.fromRGB(200, 200, 200); valTxt.Font = Enum.Font.Gotham; valTxt.TextSize = 13; valTxt.TextXAlignment = Enum.TextXAlignment.Left
+
+	local icon = Instance.new("TextLabel", btn)
+	icon.Size = UDim2.new(0, 20, 1, 0); icon.Position = UDim2.new(1, -25, 0, 0); icon.BackgroundTransparency = 1
+	icon.Text = "▼"; icon.TextColor3 = Color3.fromRGB(150, 150, 150); icon.Font = Enum.Font.GothamBold; icon.TextSize = 11
+
+	local list = Instance.new("Frame", row)
+	list.Size = UDim2.new(1, -30, 0, 0); list.Position = UDim2.new(0, 15, 0, 55); list.BackgroundTransparency = 1
+	local layout = Instance.new("UIListLayout", list); layout.Padding = UDim.new(0, 5)
+
 	local open = false
 	btn.MouseButton1Click:Connect(function()
-		open = not open
-		TweenService:Create(row, TweenInfo.new(0.3), {Size = UDim2.new(1, -10, 0, open and (45 + #options * 25) or 45)}):Play()
+		open = not open; icon.Text = open and "▲" or "▼"
+		local targetSize = open and (layout.AbsoluteContentSize.Y + 65) or 50
+		TweenService:Create(row, TweenInfo.new(0.2), {Size = UDim2.new(1, -10, 0, targetSize)}):Play()
+		-- Force update the page layout so the dropdown doesn't get cut off
+		task.delay(0.25, function() if currentTab then currentTab.page.CanvasSize = UDim2.new(0, 0, 0, currentTab.page:FindFirstChildOfClass("UIListLayout").AbsoluteContentSize.Y + 20) end end)
 	end)
+
 	for _, opt in ipairs(options) do
-		local oBtn = Instance.new("TextButton", list); oBtn.Size = UDim2.new(1, 0, 0, 22); oBtn.BackgroundColor3 = Color3.fromRGB(40,41,46); oBtn.Text = opt; oBtn.TextColor3 = Color3.fromRGB(200,200,200); oBtn.Font = Enum.Font.Gotham; oBtn.TextSize = 11; Instance.new("UICorner", oBtn).CornerRadius = UDim.new(0, 4)
-		oBtn.MouseButton1Click:Connect(function() btn.Text = opt; open = false; TweenService:Create(row, TweenInfo.new(0.3), {Size = UDim2.new(1,-10,0,45)}):Play(); callback(opt) end)
+		local oBtn = Instance.new("TextButton", list); oBtn.Size = UDim2.new(1, 0, 0, 28); oBtn.BackgroundColor3 = Color3.fromRGB(35, 36, 40)
+		oBtn.Text = "  " .. opt; oBtn.TextColor3 = Color3.fromRGB(220, 220, 220); oBtn.Font = Enum.Font.Gotham; oBtn.TextSize = 13; oBtn.TextXAlignment = Enum.TextXAlignment.Left
+		Instance.new("UICorner", oBtn).CornerRadius = UDim.new(0, 4)
+		oBtn.MouseButton1Click:Connect(function()
+			current = opt; valTxt.Text = opt; open = false; icon.Text = "▼"
+			TweenService:Create(row, TweenInfo.new(0.2), {Size = UDim2.new(1, -10, 0, 50)}):Play()
+			if callback then callback(opt) end
+		end)
 	end
 end
+
+local function CreateButton(page, text, callback)
+	local row = CreateRow(page, 50)
+	local btn = Instance.new("TextButton", row)
+	btn.Size = UDim2.new(1, 0, 1, 0); btn.BackgroundTransparency = 1; btn.Text = text
+	btn.TextColor3 = Color3.fromRGB(220, 220, 220); btn.Font = Enum.Font.GothamBold; btn.TextSize = 14
+	btn.MouseButton1Click:Connect(function() if callback then callback() end end)
+end
+
+-- ==========================================
+-- 4. CONSTRUCTION DU HUB
+-- ==========================================
+
+-- IDs Icones (Matérial Design)
+local iconFarm = "7733674079"
+local iconPlayer = "7733954760"
+local iconTeleport = "7733956484"
+local iconConfig = "7734068321"
+
+local pgFarm = CreateTab("Main Farm", iconFarm)
+local pgPlayer = CreateTab("Player", iconPlayer)
+local pgTp = CreateTab("Teleport", iconTeleport)
+local pgConfig = CreateTab("Configs", iconConfig)
+
+-- --- PAGE FARM ---
+CreateTitle(pgFarm, "Combat Target")
+CreateDropdown(pgFarm, "Select Monster", MobNames, selectedMob, function(v) selectedMob = v end)
+CreateToggle(pgFarm, "Auto Farm Monster", false, function(v) autoFarmMob = v; if v then autoFarmBoss, killauraEnabled = false, false; startCombatLoop() end end)
+CreateDropdown(pgFarm, "Select Boss", BossNames, selectedBoss, function(v) selectedBoss = v end)
+CreateToggle(pgFarm, "Auto Farm Boss", false, function(v) autoFarmBoss = v; if v then autoFarmMob, killauraEnabled = false, false; startCombatLoop() end end)
+
+CreateTitle(pgFarm, "Combat Assist")
+CreateToggle(pgFarm, "KillAura", false, function(v) killauraEnabled = v; if v then autoFarmMob, autoFarmBoss = false, false; startCombatLoop() end end)
+CreateSlider(pgFarm, "Attack Radius", 10, 1000, 500, function(v) combatRadius = v end)
+
+-- --- PAGE PLAYER ---
+CreateTitle(pgPlayer, "Local Player")
+CreateSlider(pgPlayer, "WalkSpeed", 16, 250, 50, function(v) walkSpeedValue = v; updateSpeed() end)
+CreateToggle(pgPlayer, "Enable WalkSpeed", false, function(v) walkSpeedEnabled = v; updateSpeed() end)
+CreateToggle(pgPlayer, "Infinite Jump", false, function(v) infJumpEnabled = v end)
+
+CreateTitle(pgPlayer, "Exploits")
+CreateSlider(pgPlayer, "Fly Speed", 10, 300, 50, function(v) flySpeedValue = v end)
+CreateToggle(pgPlayer, "Fly Mode", false, function(v) flyEnabled = v; toggleFly() end)
+CreateToggle(pgPlayer, "No Clip", false, function(v) noClipEnabled = v; if v then enableNoClip() else disableNoClip() end end)
+
+-- --- PAGE TELEPORT ---
+CreateTitle(pgTp, "World Travel")
+CreateDropdown(pgTp, "Select Island", IslandNames, selectedIsland, function(v) selectedIsland = v end)
+CreateButton(pgTp, "Teleport Now", function() teleportToIsland(selectedIsland) end)
+
+-- --- PAGE CONFIGS ---
+CreateTitle(pgConfig, "Menu Settings")
+CreateSlider(pgConfig, "Menu Opacity", 10, 100, 80, function(v) mainFrame.BackgroundTransparency = 1 - (v/100) end)
+CreateButton(pgConfig, "Unload Interface", function() if targetGui:FindFirstChild("MxFHubPremium") then targetGui.MxFHubPremium:Destroy() end end)
+
 
 -- Search Logic
 searchBox:GetPropertyChangedSignal("Text"):Connect(function()
 	local filter = string.lower(searchBox.Text)
 	if currentTab then
 		for _, child in ipairs(currentTab.page:GetChildren()) do
-			if child:IsA("Frame") then
+			if child:IsA("Frame") and not child:FindFirstChild("UIListLayout") then -- Exclure les titres
 				local label = child:FindFirstChildOfClass("TextLabel")
-				child.Visible = label and string.find(string.lower(label.Text), filter) ~= nil
+				if label then child.Visible = string.find(string.lower(label.Text), filter) ~= nil end
 			end
 		end
 	end
 end)
 
--- ==========================================
--- 4. CONSTRUCTION DU HUB
--- ==========================================
-local pgFarm = CreateTab("Farm", "6034501995")
-local pgPlayer = CreateTab("Self", "6023426915")
-local pgTp = CreateTab("Teleport", "6034502922")
-local pgMisc = CreateTab("Miscellaneous", "6031289224")
-
--- Farm
-CreateDropdown(pgFarm, "Select Monster", MobNames, function(v) selectedMob = v end)
-CreateToggle(pgFarm, "Auto Farm Monster", false, function(v) autoFarmMob = v; if v then autoFarmBoss, killauraEnabled = false, false; startCombatLoop() end end)
-CreateDropdown(pgFarm, "Select Boss", BossNames, function(v) selectedBoss = v end)
-CreateToggle(pgFarm, "Auto Farm Boss", false, function(v) autoFarmBoss = v; if v then autoFarmMob, killauraEnabled = false, false; startCombatLoop() end end)
-CreateToggle(pgFarm, "KillAura", false, function(v) killauraEnabled = v; if v then autoFarmMob, autoFarmBoss = false, false; startCombatLoop() end end)
-
--- Player
-CreateSlider(pgPlayer, "WalkSpeed", 16, 250, 50, function(v) walkSpeedValue = v; updateSpeed() end)
-CreateToggle(pgPlayer, "Enable WalkSpeed", false, function(v) walkSpeedEnabled = v; updateSpeed() end)
-CreateSlider(pgPlayer, "Fly Speed", 10, 300, 50, function(v) flySpeedValue = v end)
-CreateToggle(pgPlayer, "Fly Mode", false, function(v) flyEnabled = v; toggleFly() end)
-CreateToggle(pgPlayer, "Infinite Jump", false, function(v) infJumpEnabled = v end)
-CreateToggle(pgPlayer, "No Clip", false, function(v) noClipEnabled = v; if v then enableNoClip() else disableNoClip() end end)
-
--- Teleport
-CreateDropdown(pgTp, "Select Island", IslandNames, function(v) selectedIsland = v end)
-local tpRow = CreateRow(pgTp, "Execute Teleport")
-local tpBtn = Instance.new("TextButton", tpRow); tpBtn.Size = UDim2.new(0.3, 0, 0, 26); tpBtn.Position = UDim2.new(1,-15,0.5,-13); tpBtn.AnchorPoint = Vector2.new(1,0); tpBtn.BackgroundColor3 = Color3.fromRGB(40,40,45); tpBtn.Text = "TP Now"; tpBtn.TextColor3 = Color3.fromRGB(255,255,255); tpBtn.Font = Enum.Font.GothamBold; tpBtn.TextSize = 11; Instance.new("UICorner", tpBtn).CornerRadius = UDim.new(0,4)
-tpBtn.MouseButton1Click:Connect(function() teleportToIsland(selectedIsland) end)
-
 -- Dragging Main
-local dragS, dragI, dragP, startP
-mainFrame.InputBegan:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 then dragS = true; dragP = input.Position; startP = mainFrame.Position end end)
+local dragS, dragP, startP
+local topDrag = Instance.new("TextButton", mainFrame); topDrag.Size = UDim2.new(1,0,0,40); topDrag.BackgroundTransparency = 1; topDrag.Text = ""
+topDrag.InputBegan:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 then dragS = true; dragP = input.Position; startP = mainFrame.Position end end)
 UIS.InputChanged:Connect(function(input) if dragS and input.UserInputType == Enum.UserInputType.MouseMovement then local delta = input.Position - dragP; mainFrame.Position = UDim2.new(startP.X.Scale, startP.X.Offset + delta.X, startP.Y.Scale, startP.Y.Offset + delta.Y) end end)
 UIS.InputEnded:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 then dragS = false end end)
 
 -- Init
 navList:GetChildren()[2].MouseButton1Click:Fire()
-print("MxF Hub Premium Edition Chargé !")
+print("MxF Hub SpeedX Edition Chargé !")
