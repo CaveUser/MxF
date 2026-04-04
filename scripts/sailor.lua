@@ -20,7 +20,7 @@ if targetGui:FindFirstChild("MxFHub") then targetGui.MxFHub:Destroy() end
 -- 1. BASE DE DONNÉES & VARIABLES CHEATS
 -- ==========================================
 local MobDatabase = {
-	["AcademyTeacher"] = "Academy", ["Arena Fighter"] = "Lawless", ["Curse"] = "Shinjuku",
+	["AcademyTeacher"] = "Academy", ["ArenaFighter"] = "Lawless", ["Curse"] = "Shinjuku",
 	["DesertBandit"] = "Desert", ["FrostRogue"] = "Snow", ["Hollow"] = "HollowIsland",
 	["Monkey"] = "Jungle", ["Ninja"] = "Ninja", ["Quincy"] = "SoulDominion",
 	["Slime"] = "Slime", ["Sorcerer"] = "Shibuya", ["StrongSorcerer"] = "Shinjuku",
@@ -249,8 +249,8 @@ local logoIcon = Instance.new("ImageLabel", topBar)
 logoIcon.Size = UDim2.new(0, 26, 0, 26); logoIcon.Position = UDim2.new(0, 12, 0, 9)
 logoIcon.BackgroundTransparency = 1; logoIcon.ScaleType = Enum.ScaleType.Fit
 pcall(function()
-	local githubRawUrl = "LIEN_RAW_GITHUB_ICI" -- METS TON LIEN RAW ICI
-	if githubRawUrl ~= "LIEN_RAW_GITHUB_ICI" and writefile then
+	local githubRawUrl = "https://github.com/CaveUser/MxF/blob/main/scripts/mxf.png" -- METS TON LIEN RAW ICI
+	if githubRawUrl ~= "https://github.com/CaveUser/MxF/blob/main/scripts/mxf.png" and writefile then
 		local imgData = game:HttpGet(githubRawUrl)
 		writefile("mxf.png", imgData)
 		logoIcon.Image = getcustomasset("mxf.png")
