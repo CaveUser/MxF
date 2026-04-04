@@ -1,6 +1,6 @@
 -- ======================================================
--- 👑 MxF HUB - SPEED HUB X EDITION (FINAL V6)
--- UI Compacte, Skills Dropdown, Farm -90 Degrees, TP NPC
+-- 👑 MxF HUB - SPEED HUB X EDITION (FINAL V7)
+-- Safe NPC Tween, Hover Wait Spawn, Full Optimized
 -- ======================================================
 
 local Players = game:GetService("Players")
@@ -74,6 +74,9 @@ table.sort(MobNames); table.sort(BossNames); table.sort(IslandNames); table.sort
 local selectedMob, selectedBoss, selectedIsland, selectedNPC = MobNames[1], BossNames[1], IslandNames[1], NpcNames[1]
 local autoFarmMob, autoFarmBoss, autoFarmTower, killauraEnabled = false, false, false, false
 
+-- État pour éviter les TP en boucle
+local isOnRightIsland = false 
+
 -- Skills Vars
 local selectedSkill = "All"
 local autoSkillEnabled = false
@@ -97,15 +100,39 @@ end
 
 local function teleportToSpecificNPC(npcName)
 	local targetIsland = NpcIslandMap[npcName] or "Starter"
-	teleportToIsland(targetIsland)
-	task.wait(3) 
-	local npc = workspace:FindFirstChild("ServiceNPCs") and workspace.ServiceNPCs:FindFirstChild(npcName)
-	if npc and npc:FindFirstChild("HumanoidRootPart") then
-		if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-			player.Character.HumanoidRootPart.CFrame = npc.HumanoidRootPart.CFrame * CFrame.new(0, 0, -4)
-		end
+	
+	local function getNPC()
+		return workspace:FindFirstChild("ServiceNPCs") and workspace.ServiceNPCs:FindFirstChild(npcName)
+	end
+	
+	local npc = getNPC()
+	local char = player.Character
+	local root = char and char:FindFirstChild("HumanoidRootPart")
+	
+	-- Si le PNJ est loin ou non chargé, on TP à l'île
+	if not npc or not root or (root.Position - npc:FindFirstChild("HumanoidRootPart").Position).Magnitude > 2000 then
+		teleportToIsland(targetIsland)
+		task.wait(3.5) -- Attente sécurisée pour le chargement
+		npc = getNPC()
+		root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+	end
+	
+	if npc and root and npc:FindFirstChild("HumanoidRootPart") then
+		local charHum = char:FindFirstChild("Humanoid")
+		if charHum then charHum.PlatformStand = true end
+		
+		-- On Tween vers le PNJ (Anti-Cheat Bypass)
+		local targetCFrame = npc.HumanoidRootPart.CFrame * CFrame.new(0, 0, -4)
+		local dist = (root.Position - targetCFrame.Position).Magnitude
+		local glideTime = math.clamp(dist / 250, 0.1, 5) -- Vitesse de glissade à 250 studs/s
+		
+		local tween = TweenService:Create(root, TweenInfo.new(glideTime, Enum.EasingStyle.Linear), {CFrame = targetCFrame})
+		tween:Play()
+		tween.Completed:Wait()
+		
+		if charHum then charHum.PlatformStand = false end
 	else
-		print("Erreur : Le NPC " .. npcName .. " n'a pas pu charger à temps.")
+		print("Erreur : Le NPC " .. npcName .. " est introuvable ou n'a pas chargé.")
 	end
 end
 
@@ -158,33 +185,41 @@ local function startCombatLoop()
 				
 				if autoFarmMob or autoFarmBoss or autoFarmTower then
 					hum.PlatformStand = true
-					root.Velocity, root.RotVelocity = Vector3.zero, Vector3.zero
 					
 					local tName = autoFarmTower and "NearestTower" or (autoFarmMob and selectedMob or selectedBoss)
+					local island = autoFarmTower and "" or (autoFarmMob and MobDatabase[selectedMob] or BossDatabase[selectedBoss])
 					local target, dist = getTarget(tName, true)
 					currentTarget = target
 					
 					if target and target:FindFirstChild("HumanoidRootPart") then
-						if dist > 1500 and not autoFarmTower then 
-							local island = autoFarmMob and MobDatabase[selectedMob] or BossDatabase[selectedBoss]
-							teleportToIsland(island); task.wait(2.5)
-						else
-							-- Positionnement à exactement -90 degrés (tête vers le bas)
-							local tpPos = target.HumanoidRootPart.Position + Vector3.new(0, mobHeight, 0)
-							local targetCFrame = CFrame.new(tpPos) * CFrame.Angles(math.rad(-90), 0, 0)
+						isOnRightIsland = true -- On a trouvé un mob, on est sur la bonne map
+						
+						-- CFrame de farm (-90 degrés face au sol)
+						local tpPos = target.HumanoidRootPart.Position + Vector3.new(0, mobHeight, 0)
+						local targetCFrame = CFrame.new(tpPos) * CFrame.Angles(math.rad(-90), 0, 0)
 
-							if dist > 15 then
-								local tTime = math.clamp(dist / tweenSpeed, 0.05, 3)
-								TweenService:Create(root, TweenInfo.new(tTime, Enum.EasingStyle.Linear), {CFrame = targetCFrame}):Play()
-							else
-								root.CFrame = targetCFrame
-								pcall(function() remote:FireServer() end)
-							end
+						if dist > 15 then
+							local tTime = math.clamp(dist / tweenSpeed, 0.05, 3)
+							TweenService:Create(root, TweenInfo.new(tTime, Enum.EasingStyle.Linear), {CFrame = targetCFrame}):Play()
+						else
+							root.Velocity, root.RotVelocity = Vector3.zero, Vector3.zero
+							root.CFrame = targetCFrame
+							pcall(function() remote:FireServer() end)
 						end
 					else 
+						-- Le mob n'est pas là (soit on n'est pas sur la bonne île, soit ils sont tous morts)
 						if not autoFarmTower then
-							local island = autoFarmMob and MobDatabase[selectedMob] or BossDatabase[selectedBoss]
-							teleportToIsland(island); task.wait(2.5) 
+							if not isOnRightIsland then
+								-- On n'est pas encore arrivé, on se TP
+								teleportToIsland(island)
+								task.wait(3.5)
+								isOnRightIsland = true
+							else
+								-- On est sur l'île mais tout est mort : On FLOTTE et on attend le respawn !
+								root.Velocity, root.RotVelocity = Vector3.zero, Vector3.zero
+							end
+						else
+							root.Velocity, root.RotVelocity = Vector3.zero, Vector3.zero
 						end
 					end
 				elseif killauraEnabled then
@@ -498,7 +533,9 @@ local function CreateKeybind(page, text, defaultKey, callback)
 			currentKey = input.KeyCode
 			btn.Text = currentKey.Name
 			btn.TextColor3 = Color3.fromRGB(200, 200, 200)
-			isBinding = false; task.wait(0.1); isBindingAny = false
+			isBinding = false
+			task.wait(0.1)
+			isBindingAny = false
 			if callback then callback(currentKey) end
 		end
 	end)
@@ -587,10 +624,24 @@ local pgConfig = CreateTab("Configs", iconConfig)
 -- --- PAGE FARM ---
 CreateTitle(pgFarm, "Combat Target")
 CreateDropdown(pgFarm, "Select Monster", MobNames, selectedMob, function(v) selectedMob = v end)
-CreateToggle(pgFarm, "Auto Farm Monster", false, function(v) autoFarmMob = v; if v then autoFarmBoss, autoFarmTower, killauraEnabled = false, false, false; startCombatLoop() end end)
+CreateToggle(pgFarm, "Auto Farm Monster", false, function(v) 
+	autoFarmMob = v; 
+	if v then 
+		autoFarmBoss, autoFarmTower, killauraEnabled = false, false, false
+		isOnRightIsland = false 
+		startCombatLoop() 
+	end 
+end)
 
 CreateDropdown(pgFarm, "Select Boss", BossNames, selectedBoss, function(v) selectedBoss = v end)
-CreateToggle(pgFarm, "Auto Farm Boss", false, function(v) autoFarmBoss = v; if v then autoFarmMob, autoFarmTower, killauraEnabled = false, false, false; startCombatLoop() end end)
+CreateToggle(pgFarm, "Auto Farm Boss", false, function(v) 
+	autoFarmBoss = v; 
+	if v then 
+		autoFarmMob, autoFarmTower, killauraEnabled = false, false, false
+		isOnRightIsland = false
+		startCombatLoop() 
+	end 
+end)
 
 CreateToggle(pgFarm, "Auto Farm Nearest (Tower)", false, function(v) autoFarmTower = v; if v then autoFarmMob, autoFarmBoss, killauraEnabled = false, false, false; startCombatLoop() end end)
 
