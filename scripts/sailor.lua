@@ -1,6 +1,6 @@
 -- ======================================================
--- 👑 MxF HUB - SPEED HUB X EDITION (FINAL V11)
--- Auto-Equip, Anti-Reach Bypass (Backstab), Vrai Clic (M1)
+-- 👑 MxF HUB - SPEED HUB X EDITION (FINAL V16)
+-- Pure Remote Combat, Swapped Icons, Clean KillAura
 -- ======================================================
 
 local Players = game:GetService("Players")
@@ -72,10 +72,19 @@ for _, island in ipairs(ExtraIslands) do if not table.find(IslandNames, island) 
 
 table.sort(MobNames); table.sort(BossNames); table.sort(IslandNames); table.sort(NpcNames)
 
+-- Shop Variables
+local shopItemsList = {"Dungeon Key", "Boss Key", "Haki Color Reroll", "Race Reroll", "Rush Key", "Passive Shard", "Trait Reroll", "Clan Reroll"}
+local selectedShopItem = shopItemsList[1]
+local shopBuyAmount = 1
+local shopBuyDelay = 0
+local autoBuyEnabled = false
+local autoBuyCoroutine = nil
+
 local selectedMob, selectedBoss, selectedIsland, selectedNPC = MobNames[1], BossNames[1], IslandNames[1], NpcNames[1]
 local autoFarmMob, autoFarmBoss, autoFarmTower, killauraEnabled = false, false, false, false
 
 local isOnRightIsland = false 
+local currentFarmIsland = ""
 local selectedSkill = "All"
 local autoSkillEnabled = false
 local targetPlayers = false
@@ -183,29 +192,31 @@ local function getTarget(targetName, isSpecific)
 	return closest, minDist
 end
 
--- ✅ CORRECTION DES DEGATS (Auto Equip + M1 + Backstab)
+-- ✅ COMBAT SYSTEM (PURE REMOTE - CLEANED UP)
 local function startCombatLoop()
 	if combatCoroutine then task.cancel(combatCoroutine) end
 	combatCoroutine = task.spawn(function()
-		local remote = ReplicatedStorage:WaitForChild("CombatSystem"):WaitForChild("Remotes"):WaitForChild("RequestHit")
+		local hitRemote = game:GetService("ReplicatedStorage"):WaitForChild("CombatSystem"):WaitForChild("Remotes"):WaitForChild("RequestHit")
+		
 		while autoFarmMob or autoFarmBoss or autoFarmTower or killauraEnabled do
 			local char = player.Character
 			if char and char:FindFirstChild("HumanoidRootPart") then
 				local root = char.HumanoidRootPart
 				local hum = char.Humanoid
 				
-				-- Auto-Equip de l'arme
-				pcall(function()
-					for _, tool in ipairs(player.Backpack:GetChildren()) do
-						if tool:IsA("Tool") then hum:EquipTool(tool) end
-					end
-				end)
-				
 				if autoFarmMob or autoFarmBoss or autoFarmTower then
 					hum.PlatformStand = true
 					
 					local tName = autoFarmTower and "NearestTower" or (autoFarmMob and selectedMob or selectedBoss)
 					local island = autoFarmTower and "" or (autoFarmMob and MobDatabase[selectedMob] or BossDatabase[selectedBoss])
+					
+					if currentFarmIsland ~= island and not autoFarmTower then
+						teleportToIsland(island)
+						task.wait(3.5)
+						currentFarmIsland = island
+						continue 
+					end
+					
 					local target, dist = getTarget(tName, true)
 					currentTarget = target
 					
@@ -218,14 +229,11 @@ local function startCombatLoop()
 						if dist > 15 then
 							local tTime = math.clamp(dist / tweenSpeed, 0.05, 3)
 							TweenService:Create(root, TweenInfo.new(tTime, Enum.EasingStyle.Linear), {CFrame = targetCFrame}):Play()
+							root.Velocity = Vector3.zero
 						else
 							root.Velocity, root.RotVelocity = Vector3.zero, Vector3.zero
 							root.CFrame = targetCFrame
-							
-							pcall(function() remote:FireServer() end)
-							VIM:SendMouseButtonEvent(0, 0, 0, true, game, 0)
-							task.wait(0.02)
-							VIM:SendMouseButtonEvent(0, 0, 0, false, game, 0)
+							pcall(function() hitRemote:FireServer() end)
 						end
 					else 
 						if not autoFarmTower then
@@ -248,15 +256,10 @@ local function startCombatLoop()
 					currentTarget = target
 					
 					if target and target:FindFirstChild("HumanoidRootPart") then
-						-- ✅ TP dans le dos du monstre pour Bypass l'Anti-Reach
-						local backCFrame = target.HumanoidRootPart.CFrame * CFrame.new(0, 0, 3.5)
-						root.CFrame = CFrame.lookAt(backCFrame.Position, target.HumanoidRootPart.Position)
+						local targetPos = target.HumanoidRootPart.Position
+						root.CFrame = CFrame.lookAt(root.Position, Vector3.new(targetPos.X, root.Position.Y, targetPos.Z))
 						
-						-- Envoi des dégâts
-						pcall(function() remote:FireServer() end)
-						VIM:SendMouseButtonEvent(0, 0, 0, true, game, 0)
-						task.wait(0.02)
-						VIM:SendMouseButtonEvent(0, 0, 0, false, game, 0)
+						pcall(function() hitRemote:FireServer() end)
 					end
 				end
 			end
@@ -266,9 +269,7 @@ local function startCombatLoop()
 	end)
 end
 
--- ==========================================
 -- AUTO SKILLS LOOP
--- ==========================================
 task.spawn(function()
 	while task.wait(0.5) do
 		if autoSkillEnabled and currentTarget and currentTarget:FindFirstChild("Humanoid") and currentTarget.Humanoid.Health > 0 and (autoFarmMob or autoFarmBoss or autoFarmTower or killauraEnabled) then
@@ -292,6 +293,24 @@ task.spawn(function()
 		end
 	end
 end)
+
+-- AUTO BUY (SHOP) LOOP
+local function startAutoBuyLoop()
+	if autoBuyCoroutine then task.cancel(autoBuyCoroutine) end
+	autoBuyCoroutine = task.spawn(function()
+		local merchantRemote = game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("MerchantRemotes"):WaitForChild("PurchaseMerchantItem")
+		while autoBuyEnabled do
+			pcall(function()
+				local args = {
+					selectedShopItem,
+					tonumber(shopBuyAmount) or 1
+				}
+				merchantRemote:InvokeServer(unpack(args))
+			end)
+			task.wait(shopBuyDelay > 0 and shopBuyDelay or 0.1)
+		end
+	end)
+end
 
 -- Movements
 local function updateSpeed()
@@ -474,6 +493,29 @@ local function CreateRow(page, height)
 	return row
 end
 
+local function CreateInput(page, text, placeholder, default, callback)
+	local row = CreateRow(page, 50)
+	
+	local lbl = Instance.new("TextLabel", row)
+	lbl.Size = UDim2.new(0.5, 0, 1, 0); lbl.Position = UDim2.new(0, 15, 0, 0); lbl.BackgroundTransparency = 1
+	lbl.Text = text; lbl.TextColor3 = Color3.fromRGB(220, 220, 220)
+	lbl.Font = Enum.Font.GothamMedium; lbl.TextSize = 14; lbl.TextXAlignment = Enum.TextXAlignment.Left
+
+	local inputBg = Instance.new("Frame", row)
+	inputBg.Size = UDim2.new(0.4, 0, 0, 32); inputBg.Position = UDim2.new(1, -15, 0.5, -16); inputBg.AnchorPoint = Vector2.new(1, 0)
+	inputBg.BackgroundColor3 = Color3.fromRGB(30, 31, 35); Instance.new("UICorner", inputBg).CornerRadius = UDim.new(0, 6)
+	Instance.new("UIStroke", inputBg).Color = Color3.fromRGB(45, 45, 50)
+
+	local box = Instance.new("TextBox", inputBg)
+	box.Size = UDim2.new(1, -10, 1, 0); box.Position = UDim2.new(0, 5, 0, 0); box.BackgroundTransparency = 1
+	box.Text = tostring(default); box.PlaceholderText = placeholder; box.TextColor3 = UIConfig.Accent
+	box.Font = Enum.Font.GothamBold; box.TextSize = 13
+
+	box.FocusLost:Connect(function()
+		if callback then callback(box.Text) end
+	end)
+end
+
 local function CreateToggle(page, text, default, callback)
 	local row = CreateRow(page, 50)
 	local state = default
@@ -640,11 +682,13 @@ end)
 local iconFarm = "7733674079"
 local iconPlayer = "7733954760"
 local iconTeleport = "7733992829"
-local iconConfig = "7734068321"
+local iconShop = "7734068321" -- ✅ Inversé
+local iconConfig = "6031280882" -- ✅ Inversé
 
 local pgFarm = CreateTab("Farm", iconFarm)
 local pgSelf = CreateTab("Self", iconPlayer)
 local pgTp = CreateTab("Teleport", iconTeleport)
+local pgShop = CreateTab("Shop", iconShop)
 local pgConfig = CreateTab("Configs", iconConfig)
 
 -- --- PAGE FARM ---
@@ -667,9 +711,7 @@ CreateSlider(pgFarm, "Distance From Target (Height)", 0, 30, 8, function(v) mobH
 
 -- --- PAGE SELF ---
 CreateTitle(pgSelf, "Combat Assist (Aura)")
-CreateToggle(pgSelf, "KillAura (Aura à distance)", false, function(v) killauraEnabled = v; if v then autoFarmMob, autoFarmBoss, autoFarmTower = false, false, false; startCombatLoop() end end)
-CreateToggle(pgSelf, "Aura Focus Selected Mob", false, function(v) auraTargetsFarmMob = v; currentTarget = nil end)
-CreateToggle(pgSelf, "Cibler les Joueurs", false, function(v) targetPlayers = v; currentTarget = nil end)
+CreateToggle(pgSelf, "KillAura (Focus Selected Mob)", false, function(v) killauraEnabled = v; if v then autoFarmMob, autoFarmBoss, autoFarmTower = false, false, false; startCombatLoop() end end)
 CreateSlider(pgSelf, "Aura Range (Studs)", 10, 1000, 500, function(v) combatRadius = v end)
 
 CreateTitle(pgSelf, "Local Player")
@@ -690,6 +732,19 @@ CreateButton(pgTp, "Teleport to Island", function() teleportToIsland(selectedIsl
 CreateTitle(pgTp, "NPC Teleport")
 CreateDropdown(pgTp, "Select NPC", NpcNames, selectedNPC, function(v) selectedNPC = v end)
 CreateButton(pgTp, "Teleport to NPC", function() teleportToSpecificNPC(selectedNPC) end)
+
+-- --- PAGE SHOP ---
+CreateTitle(pgShop, "Merchant Shop")
+CreateDropdown(pgShop, "Select Item", shopItemsList, selectedShopItem, function(v) selectedShopItem = v end)
+CreateInput(pgShop, "Amount to Buy", "Write your input there", shopBuyAmount, function(v) shopBuyAmount = tonumber(v) or 1 end)
+CreateInput(pgShop, "Delay To Buy (Seconds)", "Write your input there", shopBuyDelay, function(v) shopBuyDelay = tonumber(v) or 0 end)
+CreateToggle(pgShop, "Auto Buy Merchant", false, function(v) autoBuyEnabled = v; if v then startAutoBuyLoop() end end)
+CreateButton(pgShop, "Buy Once", function() 
+	pcall(function() 
+		local args = { selectedShopItem, tonumber(shopBuyAmount) or 1 }
+		game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("MerchantRemotes"):WaitForChild("PurchaseMerchantItem"):InvokeServer(unpack(args))
+	end) 
+end)
 
 -- --- PAGE CONFIGS ---
 CreateTitle(pgConfig, "Menu Settings")
