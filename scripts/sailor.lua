@@ -1,6 +1,6 @@
 -- ======================================================
--- 👑 MxF HUB - SPEED HUB X EDITION (FINAL V8)
--- All NPCs Mapped, New Islands, Anti-Cheat TP Bypass
+-- 👑 MxF HUB - SPEED HUB X EDITION (FINAL V9)
+-- Safe NPC Tween, Auto Farm Island Fix, Anti-Cheat Bypass
 -- ======================================================
 
 local Players = game:GetService("Players")
@@ -39,45 +39,27 @@ local BossDatabase = {
 	["ThiefBoss"] = "Starter"
 }
 
--- Mapping complet des NPCs fourni par l'utilisateur
+-- Mapping complet des NPCs
 local NpcIslandMap = {
-	-- Dungeon
 	["DungeonMerchantNPC"] = "Dungeon", ["DungeonPortalsNPC"] = "Dungeon", ["ShadowMonarchBuyerNPC"] = "Dungeon", ["CidBuyer"] = "Dungeon",
-	-- Boss
 	["SummonBossNPC"] = "Boss", ["ExchangeNPC"] = "Boss", ["MoonSlayerBuff"] = "Boss", ["GilgameshBuyerNPC"] = "Boss", ["SaberAlterBuyerNPC"] = "Boss", ["GrailCraftNPC"] = "Boss", ["BabylonCraftNPC"] = "Boss", ["SaberAlterMasteryNPC"] = "Boss", ["QinShiBuyer"] = "Boss", ["MoonSlayerSeller"] = "Boss", ["BlessedMaidenBuyerNPC"] = "Boss", ["BlessedMaidenMasteryNPC"] = "Boss",
-	-- Jungle
 	["QuestNPC4"] = "Jungle", ["QuestNPC3"] = "Jungle",
-	-- DesertIsland
 	["QuestNPC5"] = "DesertIsland", ["ObservationBuyer"] = "DesertIsland", ["QuestNPC6"] = "DesertIsland",
-	-- SnowIsland
 	["DarkBladeNPC"] = "SnowIsland", ["RagnaQuestlineBuff"] = "SnowIsland", ["RagnaBuyer"] = "SnowIsland", ["HakiQuestNPC"] = "SnowIsland", ["ArtifactsUnlocker"] = "SnowIsland", ["ArtifactMilestoneNPC"] = "SnowIsland", ["QuestNPC7"] = "SnowIsland", ["QuestNPC8"] = "SnowIsland",
-	-- Sailor
 	["AscendNPC"] = "Sailor", ["StorageNPC"] = "Sailor", ["TitlesNPC"] = "Sailor", ["GemFruitDealer"] = "Sailor", ["MerchantNPC"] = "Sailor", ["CoinFruitDealer"] = "Sailor", ["RerollStatNPC"] = "Sailor", ["TraitNPC"] = "Sailor", ["BossRushShopNPC"] = "Sailor", ["BossRushPortalNPC"] = "Sailor", ["BossRushMerchantNPC"] = "Sailor", ["JinwooMovesetNPC"] = "Sailor", ["AlucardBuyer"] = "Sailor",
-	-- Shibuya
 	["GryphonBuyerNPC"] = "Shibuya", ["BlessingNPC"] = "Shibuya", ["EnchantNPC"] = "Shibuya", ["GojoMovesetNPC"] = "Shibuya", ["YujiBuyerNPC"] = "Shibuya", ["SukunaMovesetNPC"] = "Shibuya", ["QuestNPC9"] = "Shibuya", ["QuestNPC10"] = "Shibuya", ["ConquerorHakiNPC"] = "Shibuya",
-	-- Hollow
 	["IchigoBuyer"] = "Hollow", ["AizenQuestlineBuff"] = "Hollow", ["HogyokuQuestNPC"] = "Hollow", ["AizenMovesetNPC"] = "Hollow", ["QuestNPC11"] = "Hollow",
-	-- Shinjuku
 	["QuestNPC12"] = "Shinjuku", ["QuestNPC13"] = "Shinjuku", ["StrongestinHistoryBuyerNPC"] = "Shinjuku", ["SukunaMasteryNPC"] = "Shinjuku", ["StrongestBossSummonerNPC"] = "Shinjuku", ["GojoCraftNPC"] = "Shinjuku", ["GojoMasteryNPC"] = "Shinjuku", ["SukunaCraftNPC"] = "Shinjuku", ["StrongestofTodayBuyerNPC"] = "Shinjuku",
-	-- Slime
 	["QuestNPC14"] = "Slime", ["RimuruSummonerNPC"] = "Slime", ["SkillTreeNPC"] = "Slime", ["SlimeCraftNPC"] = "Slime", ["RimuruBuyer"] = "Slime", ["RimuruMasteryNPC"] = "Slime",
-	-- Academy
 	["AnosQuestNPC"] = "Academy", ["AnosBossSummonerNPC"] = "Academy", ["QuestNPC15"] = "Academy", ["AnosBuyerNPC"] = "Academy",
-	-- Judgement
 	["SpecPassivesNPC"] = "Judgement", ["QuestNPC16"] = "Judgement", ["YamatoBuyerNPC"] = "Judgement",
-	-- Soul
 	["TrueAizenBossSummonerNPC"] = "Soul", ["TrueAizenBuyerNPC"] = "Soul", ["TrueAizenFUnlockNPC"] = "Soul", ["QuestNPC17"] = "Soul",
-	-- Starter
 	["GroupRewardNPC"] = "Starter", ["QuestNPC2"] = "Starter", ["ShadowMonarchQuestlineBuff"] = "Starter", ["QuestNPC1"] = "Starter", ["Katana"] = "Starter", ["ShadowQuestlineBuff"] = "Starter", ["MadokaBuyer"] = "Starter",
-	-- Ninja
 	["QuestNPC18"] = "Ninja", ["StrongestShinobiMasteryNPC"] = "Ninja", ["StrongestShinobiBuyerNPC"] = "Ninja",
-	-- Lawless
 	["PowerNPC"] = "Lawless", ["AtomicBossSummonerNPC"] = "Lawless", ["QuestNPC19"] = "Lawless", ["AtomicBuyer"] = "Lawless", ["AtomicQuestlineBuff"] = "Lawless",
-	-- Tower
 	["InfiniteTowerMerchantNPC"] = "Tower", ["InfiniteTowerPortalNPC"] = "Tower", ["InfiniteTowerStatShopNPC"] = "Tower"
 }
 
--- Génération dynamique des listes
 local NpcNames = {}
 for npcName, _ in pairs(NpcIslandMap) do table.insert(NpcNames, npcName) end
 
@@ -85,7 +67,6 @@ local MobNames, BossNames, IslandNames = {}, {}, {}
 for m, i in pairs(MobDatabase) do table.insert(MobNames, m); if not table.find(IslandNames, i) then table.insert(IslandNames, i) end end
 for b, i in pairs(BossDatabase) do table.insert(BossNames, b); if not table.find(IslandNames, i) then table.insert(IslandNames, i) end end
 
--- Ajout manuel des îles pour le TP (au cas où elles n'ont pas de mobs associés)
 local ExtraIslands = {"Dungeon", "Boss", "Sailor", "Tower", "DesertIsland", "SnowIsland"}
 for _, island in ipairs(ExtraIslands) do if not table.find(IslandNames, island) then table.insert(IslandNames, island) end end
 
@@ -114,44 +95,36 @@ local function teleportToIsland(islandName)
 	pcall(function() ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("TeleportToPortal"):FireServer(islandName) end)
 end
 
--- BYPASS ANTI-CHEAT : Step-Lerp Teleport
-local function safeLerpTP(targetCFrame)
-	local char = player.Character
-	local root = char and char:FindFirstChild("HumanoidRootPart")
-	if not root then return end
-	
-	local dist = (root.Position - targetCFrame.Position).Magnitude
-	local steps = math.ceil(dist / 35) -- Micro-sauts de 35 studs pour éviter le flag anti-cheat
-	
-	if steps > 0 then
-		for i = 1, steps do
-			if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then break end
-			player.Character.HumanoidRootPart.CFrame = root.CFrame:Lerp(targetCFrame, i / steps)
-			task.wait() -- Attente minime entre les sauts
-		end
-	end
-	
-	if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-		player.Character.HumanoidRootPart.CFrame = targetCFrame
-	end
-end
-
+-- ✅ CORRECTION TP NPC : Vol au lieu de TP Brutal
 local function teleportToSpecificNPC(npcName)
 	local targetIsland = NpcIslandMap[npcName] or "Starter"
 	
-	-- TP initial au portail
+	-- 1. TP au portail
 	teleportToIsland(targetIsland)
-	task.wait(3.5) -- On attend que le jeu charge la map et le dossier NPCs
+	task.wait(3.5) -- Attente du chargement de l'île
 	
+	-- 2. Recherche du PNJ
 	local npc = workspace:FindFirstChild("ServiceNPCs") and workspace.ServiceNPCs:FindFirstChild(npcName)
-	if npc and npc:FindFirstChild("HumanoidRootPart") then
-		-- Position cible : 4 studs devant le PNJ
+	local char = player.Character
+	local root = char and char:FindFirstChild("HumanoidRootPart")
+	local hum = char and char:FindFirstChild("Humanoid")
+	
+	if npc and npc:FindFirstChild("HumanoidRootPart") and root and hum then
+		-- 3. Vol propre (Tween) vers le PNJ pour bypass l'anti-cheat
+		hum.PlatformStand = true
 		local targetCFrame = npc.HumanoidRootPart.CFrame * CFrame.new(0, 0, -4)
+		local dist = (root.Position - targetCFrame.Position).Magnitude
 		
-		-- Utilise le bypass anti-cheat pour s'y rendre
-		safeLerpTP(targetCFrame)
+		-- Vitesse adaptative utilisant ton paramètre de Tween Speed
+		local glideTime = math.clamp(dist / tweenSpeed, 0.1, 8) 
+		
+		local tween = TweenService:Create(root, TweenInfo.new(glideTime, Enum.EasingStyle.Linear), {CFrame = targetCFrame})
+		tween:Play()
+		tween.Completed:Wait()
+		
+		hum.PlatformStand = false
 	else
-		print("Erreur : Le NPC " .. npcName .. " est introuvable sur " .. targetIsland .. " après le chargement.")
+		print("Erreur : Le NPC " .. npcName .. " n'a pas pu charger à temps.")
 	end
 end
 
@@ -189,7 +162,6 @@ local function getTarget(targetName, isSpecific)
 			end
 		end
 	end
-	
 	return closest, minDist
 end
 
@@ -226,13 +198,14 @@ local function startCombatLoop()
 							pcall(function() remote:FireServer() end)
 						end
 					else 
+						-- ✅ CORRECTION AUTO-FARM TP : Si le mob n'est pas là, il réévalue son besoin de TP
 						if not autoFarmTower then
 							if not isOnRightIsland then
 								teleportToIsland(island)
-								task.wait(3.5)
+								task.wait(4) -- On laisse bien la zone charger
 								isOnRightIsland = true
 							else
-								-- Hover Wait Respawn
+								-- On flotte en attendant le respawn
 								root.Velocity, root.RotVelocity = Vector3.zero, Vector3.zero
 							end
 						else
@@ -337,7 +310,7 @@ player.CharacterAdded:Connect(function()
 end)
 
 -- ==========================================
--- 3. MOTEUR UI
+-- 3. MOTEUR UI (SPEED HUB X REPRODUCTION PROPRE)
 -- ==========================================
 local screenGui = Instance.new("ScreenGui", targetGui)
 screenGui.Name = "MxFHubPremium"
@@ -638,7 +611,9 @@ local pgConfig = CreateTab("Configs", iconConfig)
 
 -- --- PAGE FARM ---
 CreateTitle(pgFarm, "Combat Target")
-CreateDropdown(pgFarm, "Select Monster", MobNames, selectedMob, function(v) selectedMob = v end)
+CreateDropdown(pgFarm, "Select Monster", MobNames, selectedMob, function(v) 
+	selectedMob = v; isOnRightIsland = false 
+end)
 CreateToggle(pgFarm, "Auto Farm Monster", false, function(v) 
 	autoFarmMob = v; 
 	if v then 
@@ -648,7 +623,9 @@ CreateToggle(pgFarm, "Auto Farm Monster", false, function(v)
 	end 
 end)
 
-CreateDropdown(pgFarm, "Select Boss", BossNames, selectedBoss, function(v) selectedBoss = v end)
+CreateDropdown(pgFarm, "Select Boss", BossNames, selectedBoss, function(v) 
+	selectedBoss = v; isOnRightIsland = false 
+end)
 CreateToggle(pgFarm, "Auto Farm Boss", false, function(v) 
 	autoFarmBoss = v; 
 	if v then 
@@ -713,4 +690,4 @@ end)
 
 -- Init
 navList:GetChildren()[2].MouseButton1Click:Fire()
-print("MxF Hub The Ultimate Edition Chargé avec Bypass Anti-Cheat !")
+print("MxF Hub The Ultimate Edition Chargé !")
