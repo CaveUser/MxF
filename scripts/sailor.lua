@@ -1,6 +1,6 @@
 -- ======================================================
--- 👑 MxF HUB - SPEED HUB X EDITION (FINAL V16)
--- Pure Remote Combat, Swapped Icons, Clean KillAura
+-- 👑 MxF HUB - SPEED HUB X EDITION (FINAL V19)
+-- Zero Jitter Farm, Auto Summon Boss, Clean UI
 -- ======================================================
 
 local Players = game:GetService("Players")
@@ -80,9 +80,22 @@ local shopBuyDelay = 0
 local autoBuyEnabled = false
 local autoBuyCoroutine = nil
 
+-- Auto Stats Variables
+local autoStatsEnabled = false
+local statPoints = {Melee = 1, Defense = 1, Sword = 1, Power = 1}
+local autoStatsToggles = {Melee = false, Defense = false, Sword = false, Power = false}
+local autoStatsCoroutine = nil
+
+-- Auto Summon Boss Variables
+local summonBossesList = {"SaberBoss", "QinShiBoss", "IchigoBoss", "GilgameshBoss", "BlessedMaidenBoss", "SaberAlterBoss", "MoonSlayerBoss"}
+local selectedSummonBoss = summonBossesList[1]
+local difficultyList = {"Normal", "Medium", "Hard", "Extreme"}
+local selectedDifficulty = difficultyList[1]
+local bossesWithDifficulty = { ["GilgameshBoss"] = true, ["BlessedMaidenBoss"] = true, ["SaberAlterBoss"] = true, ["MoonSlayerBoss"] = true }
+
+-- Combat & Target Variables
 local selectedMob, selectedBoss, selectedIsland, selectedNPC = MobNames[1], BossNames[1], IslandNames[1], NpcNames[1]
 local autoFarmMob, autoFarmBoss, autoFarmTower, killauraEnabled = false, false, false, false
-
 local isOnRightIsland = false 
 local currentFarmIsland = ""
 local selectedSkill = "All"
@@ -192,7 +205,7 @@ local function getTarget(targetName, isSpecific)
 	return closest, minDist
 end
 
--- ✅ COMBAT SYSTEM (PURE REMOTE - CLEANED UP)
+-- ✅ COMBAT SYSTEM (ANTI-JITTER PERFECT HOLD)
 local function startCombatLoop()
 	if combatCoroutine then task.cancel(combatCoroutine) end
 	combatCoroutine = task.spawn(function()
@@ -204,6 +217,16 @@ local function startCombatLoop()
 				local root = char.HumanoidRootPart
 				local hum = char.Humanoid
 				
+				-- Création de l'Anti-Tremblote (BodyVelocity invisible)
+				local farmHold = root:FindFirstChild("FarmHold")
+				if not farmHold then
+					farmHold = Instance.new("BodyVelocity")
+					farmHold.Name = "FarmHold"
+					farmHold.Velocity = Vector3.zero
+					farmHold.MaxForce = Vector3.new(0, 0, 0)
+					farmHold.Parent = root
+				end
+				
 				if autoFarmMob or autoFarmBoss or autoFarmTower then
 					hum.PlatformStand = true
 					
@@ -211,6 +234,7 @@ local function startCombatLoop()
 					local island = autoFarmTower and "" or (autoFarmMob and MobDatabase[selectedMob] or BossDatabase[selectedBoss])
 					
 					if currentFarmIsland ~= island and not autoFarmTower then
+						farmHold.MaxForce = Vector3.new(0, 0, 0) -- Coupe l'anti-gravité le temps de TP
 						teleportToIsland(island)
 						task.wait(3.5)
 						currentFarmIsland = island
@@ -227,17 +251,20 @@ local function startCombatLoop()
 						local targetCFrame = CFrame.new(tpPos) * CFrame.Angles(math.rad(-90), 0, 0)
 
 						if dist > 15 then
+							farmHold.MaxForce = Vector3.new(0, 0, 0)
 							local tTime = math.clamp(dist / tweenSpeed, 0.05, 3)
 							TweenService:Create(root, TweenInfo.new(tTime, Enum.EasingStyle.Linear), {CFrame = targetCFrame}):Play()
-							root.Velocity = Vector3.zero
 						else
-							root.Velocity, root.RotVelocity = Vector3.zero, Vector3.zero
+							-- Active l'Anti-Tremblote (Gèle parfaitement le perso en l'air)
+							farmHold.MaxForce = Vector3.new(1e5, 1e5, 1e5)
 							root.CFrame = targetCFrame
 							pcall(function() hitRemote:FireServer() end)
 						end
 					else 
+						farmHold.MaxForce = Vector3.new(1e5, 1e5, 1e5)
 						if not autoFarmTower then
 							if not isOnRightIsland then
+								farmHold.MaxForce = Vector3.new(0, 0, 0)
 								teleportToIsland(island)
 								task.wait(3.5)
 								isOnRightIsland = true
@@ -249,6 +276,7 @@ local function startCombatLoop()
 						end
 					end
 				elseif killauraEnabled then
+					farmHold.MaxForce = Vector3.new(0, 0, 0)
 					if not flyEnabled then hum.PlatformStand = false end
 					
 					local tName = auraTargetsFarmMob and selectedMob or nil
@@ -258,14 +286,21 @@ local function startCombatLoop()
 					if target and target:FindFirstChild("HumanoidRootPart") then
 						local targetPos = target.HumanoidRootPart.Position
 						root.CFrame = CFrame.lookAt(root.Position, Vector3.new(targetPos.X, root.Position.Y, targetPos.Z))
-						
 						pcall(function() hitRemote:FireServer() end)
 					end
 				end
 			end
 			task.wait(combatCooldown)
 		end
-		if player.Character and not flyEnabled then player.Character.Humanoid.PlatformStand = false end
+		
+		-- Nettoyage si on désactive
+		if player.Character then
+			local farmHold = player.Character:FindFirstChild("HumanoidRootPart") and player.Character.HumanoidRootPart:FindFirstChild("FarmHold")
+			if farmHold then farmHold:Destroy() end
+			if not flyEnabled and player.Character:FindFirstChild("Humanoid") then
+				player.Character.Humanoid.PlatformStand = false
+			end
+		end
 	end)
 end
 
@@ -294,6 +329,25 @@ task.spawn(function()
 	end
 end)
 
+-- AUTO STATS LOOP
+local function startAutoStatsLoop()
+	if autoStatsCoroutine then task.cancel(autoStatsCoroutine) end
+	autoStatsCoroutine = task.spawn(function()
+		local remote = game:GetService("ReplicatedStorage"):WaitForChild("RemoteEvents"):WaitForChild("AllocateStat")
+		while autoStatsEnabled do
+			for statName, isEnabled in pairs(autoStatsToggles) do
+				if isEnabled then
+					pcall(function() 
+						local points = math.clamp(statPoints[statName] or 1, 1, 13000)
+						remote:FireServer(statName, points) 
+					end)
+				end
+			end
+			task.wait(2.5)
+		end
+	end)
+end
+
 -- AUTO BUY (SHOP) LOOP
 local function startAutoBuyLoop()
 	if autoBuyCoroutine then task.cancel(autoBuyCoroutine) end
@@ -301,10 +355,7 @@ local function startAutoBuyLoop()
 		local merchantRemote = game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("MerchantRemotes"):WaitForChild("PurchaseMerchantItem")
 		while autoBuyEnabled do
 			pcall(function()
-				local args = {
-					selectedShopItem,
-					tonumber(shopBuyAmount) or 1
-				}
+				local args = { selectedShopItem, tonumber(shopBuyAmount) or 1 }
 				merchantRemote:InvokeServer(unpack(args))
 			end)
 			task.wait(shopBuyDelay > 0 and shopBuyDelay or 0.1)
@@ -367,7 +418,7 @@ player.CharacterAdded:Connect(function()
 end)
 
 -- ==========================================
--- 3. MOTEUR UI
+-- 3. MOTEUR UI (SECTIONS COLLAPSIBLES)
 -- ==========================================
 local screenGui = Instance.new("ScreenGui", targetGui)
 screenGui.Name = "MxFHubPremium"
@@ -471,13 +522,65 @@ local function CreateTab(name, iconId)
 	return page
 end
 
+local function CreateSection(page, text, defaultOpen)
+	local section = Instance.new("Frame", page)
+	section.Size = UDim2.new(1, -10, 0, 40)
+	section.BackgroundColor3 = Color3.fromRGB(22, 23, 27)
+	section.BackgroundTransparency = 0.2
+	section.ClipsDescendants = true
+	Instance.new("UICorner", section).CornerRadius = UDim.new(0, 8)
+	Instance.new("UIStroke", section).Color = Color3.fromRGB(40, 40, 45)
+	
+	local btn = Instance.new("TextButton", section)
+	btn.Size = UDim2.new(1, 0, 0, 40); btn.BackgroundTransparency = 1; btn.Text = ""
+	
+	local lbl = Instance.new("TextLabel", btn)
+	lbl.Size = UDim2.new(1, -30, 1, 0); lbl.Position = UDim2.new(0, 15, 0, 0); lbl.BackgroundTransparency = 1
+	lbl.Text = text; lbl.TextColor3 = Color3.fromRGB(255, 255, 255); lbl.Font = Enum.Font.GothamBold; lbl.TextSize = 15; lbl.TextXAlignment = Enum.TextXAlignment.Left
+	
+	local icon = Instance.new("TextLabel", btn)
+	icon.Size = UDim2.new(0, 20, 1, 0); icon.Position = UDim2.new(1, -25, 0, 0); icon.BackgroundTransparency = 1
+	icon.Text = defaultOpen and "▼" or "▶"; icon.TextColor3 = Color3.fromRGB(200, 200, 200); icon.Font = Enum.Font.GothamBold; icon.TextSize = 12
+	
+	local content = Instance.new("Frame", section)
+	content.Size = UDim2.new(1, 0, 0, 0); content.Position = UDim2.new(0, 0, 0, 40); content.BackgroundTransparency = 1
+	local layout = Instance.new("UIListLayout", content); layout.Padding = UDim.new(0, 5); layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	
+	local isOpen = defaultOpen == true
+	
+	local function updateSize()
+		if isOpen then
+			local contentHeight = layout.AbsoluteContentSize.Y + 10 
+			TweenService:Create(section, TweenInfo.new(0.2), {Size = UDim2.new(1, -10, 0, 40 + contentHeight)}):Play()
+			content.Size = UDim2.new(1, 0, 0, contentHeight)
+		else
+			TweenService:Create(section, TweenInfo.new(0.2), {Size = UDim2.new(1, -10, 0, 40)}):Play()
+		end
+	end
+	
+	layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function() if isOpen then updateSize() end end)
+	
+	btn.MouseButton1Click:Connect(function()
+		isOpen = not isOpen; icon.Text = isOpen and "▼" or "▶"; updateSize()
+		task.delay(0.25, function() 
+			if currentTab then 
+				local mainLayout = currentTab.page:FindFirstChildOfClass("UIListLayout")
+				if mainLayout then currentTab.page.CanvasSize = UDim2.new(0, 0, 0, mainLayout.AbsoluteContentSize.Y + 20) end
+			end 
+		end)
+	end)
+	
+	task.delay(0.1, function() if defaultOpen then updateSize() end end)
+	return content
+end
+
 local function CreateTitle(page, text)
 	local frame = Instance.new("Frame", page)
 	frame.Size = UDim2.new(1, -10, 0, 35); frame.BackgroundTransparency = 1
 	
 	local lbl = Instance.new("TextLabel", frame)
 	lbl.Size = UDim2.new(1, 0, 1, -5); lbl.BackgroundTransparency = 1; lbl.Text = text
-	lbl.TextColor3 = Color3.fromRGB(255, 255, 255); lbl.Font = Enum.Font.GothamBold; lbl.TextSize = 16; lbl.TextXAlignment = Enum.TextXAlignment.Left
+	lbl.TextColor3 = Color3.fromRGB(255, 255, 255); lbl.Font = Enum.Font.GothamBold; lbl.TextSize = 14; lbl.TextXAlignment = Enum.TextXAlignment.Left
 	
 	local line = Instance.new("Frame", frame)
 	line.Size = UDim2.new(1, 0, 0, 1); line.Position = UDim2.new(0, 0, 1, -2); line.BackgroundColor3 = Color3.fromRGB(50, 50, 60); line.BorderSizePixel = 0
@@ -487,60 +590,57 @@ end
 
 local function CreateRow(page, height)
 	local row = Instance.new("Frame", page)
-	row.Size = UDim2.new(1, -10, 0, height or 50); row.BackgroundColor3 = Color3.fromRGB(22, 23, 27); row.BackgroundTransparency = 0.2
-	Instance.new("UICorner", row).CornerRadius = UDim.new(0, 8)
-	Instance.new("UIStroke", row).Color = Color3.fromRGB(40, 40, 45)
+	row.Size = UDim2.new(1, -10, 0, height or 45)
+	row.BackgroundTransparency = 1 
 	return row
 end
 
 local function CreateInput(page, text, placeholder, default, callback)
-	local row = CreateRow(page, 50)
+	local row = CreateRow(page, 45)
 	
 	local lbl = Instance.new("TextLabel", row)
-	lbl.Size = UDim2.new(0.5, 0, 1, 0); lbl.Position = UDim2.new(0, 15, 0, 0); lbl.BackgroundTransparency = 1
+	lbl.Size = UDim2.new(0.5, 0, 1, 0); lbl.Position = UDim2.new(0, 10, 0, 0); lbl.BackgroundTransparency = 1
 	lbl.Text = text; lbl.TextColor3 = Color3.fromRGB(220, 220, 220)
-	lbl.Font = Enum.Font.GothamMedium; lbl.TextSize = 14; lbl.TextXAlignment = Enum.TextXAlignment.Left
+	lbl.Font = Enum.Font.GothamMedium; lbl.TextSize = 13; lbl.TextXAlignment = Enum.TextXAlignment.Left
 
 	local inputBg = Instance.new("Frame", row)
-	inputBg.Size = UDim2.new(0.4, 0, 0, 32); inputBg.Position = UDim2.new(1, -15, 0.5, -16); inputBg.AnchorPoint = Vector2.new(1, 0)
+	inputBg.Size = UDim2.new(0.4, 0, 0, 30); inputBg.Position = UDim2.new(1, -10, 0.5, -15); inputBg.AnchorPoint = Vector2.new(1, 0)
 	inputBg.BackgroundColor3 = Color3.fromRGB(30, 31, 35); Instance.new("UICorner", inputBg).CornerRadius = UDim.new(0, 6)
 	Instance.new("UIStroke", inputBg).Color = Color3.fromRGB(45, 45, 50)
 
 	local box = Instance.new("TextBox", inputBg)
 	box.Size = UDim2.new(1, -10, 1, 0); box.Position = UDim2.new(0, 5, 0, 0); box.BackgroundTransparency = 1
 	box.Text = tostring(default); box.PlaceholderText = placeholder; box.TextColor3 = UIConfig.Accent
-	box.Font = Enum.Font.GothamBold; box.TextSize = 13
+	box.Font = Enum.Font.GothamBold; box.TextSize = 12
 
-	box.FocusLost:Connect(function()
-		if callback then callback(box.Text) end
-	end)
+	box.FocusLost:Connect(function() if callback then callback(box.Text) end end)
 end
 
 local function CreateToggle(page, text, default, callback)
-	local row = CreateRow(page, 50)
+	local row = CreateRow(page, 45)
 	local state = default
 	
 	local lbl = Instance.new("TextLabel", row)
-	lbl.Size = UDim2.new(0.7, 0, 1, 0); lbl.Position = UDim2.new(0, 15, 0, 0); lbl.BackgroundTransparency = 1
-	lbl.Text = text; lbl.TextColor3 = Color3.fromRGB(220, 220, 220); lbl.Font = Enum.Font.GothamMedium; lbl.TextSize = 14; lbl.TextXAlignment = Enum.TextXAlignment.Left
+	lbl.Size = UDim2.new(0.7, 0, 1, 0); lbl.Position = UDim2.new(0, 10, 0, 0); lbl.BackgroundTransparency = 1
+	lbl.Text = text; lbl.TextColor3 = Color3.fromRGB(220, 220, 220); lbl.Font = Enum.Font.GothamMedium; lbl.TextSize = 13; lbl.TextXAlignment = Enum.TextXAlignment.Left
 	
 	local btn = Instance.new("TextButton", row)
 	btn.Size = UDim2.new(1, 0, 1, 0); btn.BackgroundTransparency = 1; btn.Text = ""
 
 	local pill = Instance.new("Frame", row)
-	pill.Size = UDim2.new(0, 42, 0, 24); pill.Position = UDim2.new(1, -55, 0.5, -12)
+	pill.Size = UDim2.new(0, 38, 0, 20); pill.Position = UDim2.new(1, -48, 0.5, -10)
 	pill.BackgroundColor3 = state and UIConfig.Accent or Color3.fromRGB(45, 46, 50)
 	Instance.new("UICorner", pill).CornerRadius = UDim.new(1, 0)
 
 	local circle = Instance.new("Frame", pill)
-	circle.Size = UDim2.new(0, 18, 0, 18); circle.Position = state and UDim2.new(1, -21, 0.5, -9) or UDim2.new(0, 3, 0.5, -9)
+	circle.Size = UDim2.new(0, 14, 0, 14); circle.Position = state and UDim2.new(1, -17, 0.5, -7) or UDim2.new(0, 3, 0.5, -7)
 	circle.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 	Instance.new("UICorner", circle).CornerRadius = UDim.new(1, 0)
 
 	btn.MouseButton1Click:Connect(function()
 		state = not state
 		local targetColor = state and UIConfig.Accent or Color3.fromRGB(45, 46, 50)
-		local targetPos = state and UDim2.new(1, -21, 0.5, -9) or UDim2.new(0, 3, 0.5, -9)
+		local targetPos = state and UDim2.new(1, -17, 0.5, -7) or UDim2.new(0, 3, 0.5, -7)
 		TweenService:Create(pill, TweenInfo.new(0.2), {BackgroundColor3 = targetColor}):Play()
 		TweenService:Create(circle, TweenInfo.new(0.2), {Position = targetPos}):Play()
 		callback(state)
@@ -548,18 +648,18 @@ local function CreateToggle(page, text, default, callback)
 end
 
 local function CreateSlider(page, text, min, max, default, callback)
-	local row = CreateRow(page, 60)
+	local row = CreateRow(page, 55)
 	
 	local lbl = Instance.new("TextLabel", row)
-	lbl.Size = UDim2.new(0.5, 0, 0, 30); lbl.Position = UDim2.new(0, 15, 0, 5); lbl.BackgroundTransparency = 1
-	lbl.Text = text; lbl.TextColor3 = Color3.fromRGB(220, 220, 220); lbl.Font = Enum.Font.GothamMedium; lbl.TextSize = 14; lbl.TextXAlignment = Enum.TextXAlignment.Left
+	lbl.Size = UDim2.new(0.5, 0, 0, 25); lbl.Position = UDim2.new(0, 10, 0, 5); lbl.BackgroundTransparency = 1
+	lbl.Text = text; lbl.TextColor3 = Color3.fromRGB(220, 220, 220); lbl.Font = Enum.Font.GothamMedium; lbl.TextSize = 13; lbl.TextXAlignment = Enum.TextXAlignment.Left
 
 	local valLbl = Instance.new("TextLabel", row)
-	valLbl.Size = UDim2.new(0.4, 0, 0, 30); valLbl.Position = UDim2.new(1, -55, 0, 5); valLbl.BackgroundTransparency = 1
-	valLbl.Text = tostring(default); valLbl.TextColor3 = UIConfig.Accent; valLbl.Font = Enum.Font.GothamBold; valLbl.TextSize = 13; valLbl.TextXAlignment = Enum.TextXAlignment.Right
+	valLbl.Size = UDim2.new(0.4, 0, 0, 25); valLbl.Position = UDim2.new(1, -50, 0, 5); valLbl.BackgroundTransparency = 1
+	valLbl.Text = tostring(default); valLbl.TextColor3 = UIConfig.Accent; valLbl.Font = Enum.Font.GothamBold; valLbl.TextSize = 12; valLbl.TextXAlignment = Enum.TextXAlignment.Right
 	
 	local sliderBg = Instance.new("TextButton", row)
-	sliderBg.Size = UDim2.new(1, -30, 0, 6); sliderBg.Position = UDim2.new(0, 15, 0, 40); sliderBg.BackgroundColor3 = Color3.fromRGB(50, 50, 55); sliderBg.Text = ""
+	sliderBg.Size = UDim2.new(1, -20, 0, 4); sliderBg.Position = UDim2.new(0, 10, 0, 35); sliderBg.BackgroundColor3 = Color3.fromRGB(50, 50, 55); sliderBg.Text = ""
 	Instance.new("UICorner", sliderBg).CornerRadius = UDim.new(1, 0)
 	
 	local fill = Instance.new("Frame", sliderBg)
@@ -578,87 +678,81 @@ end
 
 local isBindingAny = false
 local function CreateKeybind(page, text, defaultKey, callback)
-	local row = CreateRow(page, 50)
+	local row = CreateRow(page, 45)
 	local currentKey = defaultKey
 	
 	local lbl = Instance.new("TextLabel", row)
-	lbl.Size = UDim2.new(0.5, 0, 1, 0); lbl.Position = UDim2.new(0, 15, 0, 0); lbl.BackgroundTransparency = 1
-	lbl.Text = text; lbl.TextColor3 = Color3.fromRGB(220, 220, 220); lbl.Font = Enum.Font.GothamMedium; lbl.TextSize = 14; lbl.TextXAlignment = Enum.TextXAlignment.Left
+	lbl.Size = UDim2.new(0.5, 0, 1, 0); lbl.Position = UDim2.new(0, 10, 0, 0); lbl.BackgroundTransparency = 1
+	lbl.Text = text; lbl.TextColor3 = Color3.fromRGB(220, 220, 220); lbl.Font = Enum.Font.GothamMedium; lbl.TextSize = 13; lbl.TextXAlignment = Enum.TextXAlignment.Left
 
 	local btn = Instance.new("TextButton", row)
-	btn.Size = UDim2.new(0.4, 0, 0, 32); btn.Position = UDim2.new(1, -15, 0.5, -16); btn.AnchorPoint = Vector2.new(1, 0)
+	btn.Size = UDim2.new(0.4, 0, 0, 28); btn.Position = UDim2.new(1, -10, 0.5, -14); btn.AnchorPoint = Vector2.new(1, 0)
 	btn.BackgroundColor3 = Color3.fromRGB(30, 31, 35); btn.Text = currentKey.Name; btn.TextColor3 = Color3.fromRGB(200, 200, 200)
-	btn.Font = Enum.Font.GothamBold; btn.TextSize = 12; Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
+	btn.Font = Enum.Font.GothamBold; btn.TextSize = 11; Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
 	Instance.new("UIStroke", btn).Color = Color3.fromRGB(45, 45, 50)
 
 	local isBinding = false
 	btn.MouseButton1Click:Connect(function()
-		isBinding = true; isBindingAny = true
-		btn.Text = "Press Key..."
-		btn.TextColor3 = UIConfig.Accent
+		isBinding = true; isBindingAny = true; btn.Text = "Press Key..."; btn.TextColor3 = UIConfig.Accent
 	end)
 
 	UIS.InputBegan:Connect(function(input)
 		if isBinding and input.UserInputType == Enum.UserInputType.Keyboard then
-			currentKey = input.KeyCode
-			btn.Text = currentKey.Name
-			btn.TextColor3 = Color3.fromRGB(200, 200, 200)
-			isBinding = false; task.wait(0.1); isBindingAny = false
-			if callback then callback(currentKey) end
+			currentKey = input.KeyCode; btn.Text = currentKey.Name; btn.TextColor3 = Color3.fromRGB(200, 200, 200)
+			isBinding = false; task.wait(0.1); isBindingAny = false; if callback then callback(currentKey) end
 		end
 	end)
 end
 
 local function CreateDropdown(page, text, options, default, callback)
 	local current = default or options[1]
-	local row = CreateRow(page, 50); row.ClipsDescendants = true
+	local row = CreateRow(page, 45); row.ClipsDescendants = true
 
 	local lbl = Instance.new("TextLabel", row)
-	lbl.Size = UDim2.new(0.4, 0, 0, 50); lbl.Position = UDim2.new(0, 15, 0, 0); lbl.BackgroundTransparency = 1
-	lbl.Text = text; lbl.TextColor3 = Color3.fromRGB(220, 220, 220); lbl.Font = Enum.Font.GothamMedium; lbl.TextSize = 14; lbl.TextXAlignment = Enum.TextXAlignment.Left
+	lbl.Size = UDim2.new(0.4, 0, 0, 45); lbl.Position = UDim2.new(0, 10, 0, 0); lbl.BackgroundTransparency = 1
+	lbl.Text = text; lbl.TextColor3 = Color3.fromRGB(220, 220, 220); lbl.Font = Enum.Font.GothamMedium; lbl.TextSize = 13; lbl.TextXAlignment = Enum.TextXAlignment.Left
 
 	local btn = Instance.new("TextButton", row)
-	btn.Size = UDim2.new(0.5, 0, 0, 34); btn.Position = UDim2.new(1, -15, 0, 8); btn.AnchorPoint = Vector2.new(1, 0)
+	btn.Size = UDim2.new(0.5, 0, 0, 30); btn.Position = UDim2.new(1, -10, 0, 7); btn.AnchorPoint = Vector2.new(1, 0)
 	btn.BackgroundColor3 = Color3.fromRGB(30, 31, 35); btn.Text = ""; Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
 	Instance.new("UIStroke", btn).Color = Color3.fromRGB(45, 45, 50)
 
 	local valTxt = Instance.new("TextLabel", btn)
 	valTxt.Size = UDim2.new(1, -30, 1, 0); valTxt.Position = UDim2.new(0, 10, 0, 0); valTxt.BackgroundTransparency = 1
-	valTxt.Text = tostring(current); valTxt.TextColor3 = Color3.fromRGB(200, 200, 200); valTxt.Font = Enum.Font.Gotham; valTxt.TextSize = 13; valTxt.TextXAlignment = Enum.TextXAlignment.Left
+	valTxt.Text = tostring(current); valTxt.TextColor3 = Color3.fromRGB(200, 200, 200); valTxt.Font = Enum.Font.Gotham; valTxt.TextSize = 12; valTxt.TextXAlignment = Enum.TextXAlignment.Left
 
 	local icon = Instance.new("TextLabel", btn)
-	icon.Size = UDim2.new(0, 20, 1, 0); icon.Position = UDim2.new(1, -25, 0, 0); icon.BackgroundTransparency = 1
-	icon.Text = "▼"; icon.TextColor3 = Color3.fromRGB(150, 150, 150); icon.Font = Enum.Font.GothamBold; icon.TextSize = 11
+	icon.Size = UDim2.new(0, 20, 1, 0); icon.Position = UDim2.new(1, -20, 0, 0); icon.BackgroundTransparency = 1
+	icon.Text = "▼"; icon.TextColor3 = Color3.fromRGB(150, 150, 150); icon.Font = Enum.Font.GothamBold; icon.TextSize = 10
 
 	local list = Instance.new("Frame", row)
-	list.Size = UDim2.new(1, -30, 0, 0); list.Position = UDim2.new(0, 15, 0, 55); list.BackgroundTransparency = 1
+	list.Size = UDim2.new(1, -20, 0, 0); list.Position = UDim2.new(0, 10, 0, 50); list.BackgroundTransparency = 1
 	local layout = Instance.new("UIListLayout", list); layout.Padding = UDim.new(0, 5)
 
 	local open = false
 	btn.MouseButton1Click:Connect(function()
 		open = not open; icon.Text = open and "▲" or "▼"
-		local targetSize = open and (layout.AbsoluteContentSize.Y + 65) or 50
+		local targetSize = open and (layout.AbsoluteContentSize.Y + 60) or 45
 		TweenService:Create(row, TweenInfo.new(0.2), {Size = UDim2.new(1, -10, 0, targetSize)}):Play()
-		task.delay(0.25, function() if currentTab then currentTab.page.CanvasSize = UDim2.new(0, 0, 0, currentTab.page:FindFirstChildOfClass("UIListLayout").AbsoluteContentSize.Y + 20) end end)
 	end)
 
 	for _, opt in ipairs(options) do
-		local oBtn = Instance.new("TextButton", list); oBtn.Size = UDim2.new(1, 0, 0, 28); oBtn.BackgroundColor3 = Color3.fromRGB(35, 36, 40)
-		oBtn.Text = "  " .. opt; oBtn.TextColor3 = Color3.fromRGB(220, 220, 220); oBtn.Font = Enum.Font.Gotham; oBtn.TextSize = 13; oBtn.TextXAlignment = Enum.TextXAlignment.Left
+		local oBtn = Instance.new("TextButton", list); oBtn.Size = UDim2.new(1, 0, 0, 25); oBtn.BackgroundColor3 = Color3.fromRGB(35, 36, 40)
+		oBtn.Text = "  " .. opt; oBtn.TextColor3 = Color3.fromRGB(220, 220, 220); oBtn.Font = Enum.Font.Gotham; oBtn.TextSize = 12; oBtn.TextXAlignment = Enum.TextXAlignment.Left
 		Instance.new("UICorner", oBtn).CornerRadius = UDim.new(0, 4)
 		oBtn.MouseButton1Click:Connect(function()
 			current = opt; valTxt.Text = opt; open = false; icon.Text = "▼"
-			TweenService:Create(row, TweenInfo.new(0.2), {Size = UDim2.new(1, -10, 0, 50)}):Play()
+			TweenService:Create(row, TweenInfo.new(0.2), {Size = UDim2.new(1, -10, 0, 45)}):Play()
 			if callback then callback(opt) end
 		end)
 	end
 end
 
 local function CreateButton(page, text, callback)
-	local row = CreateRow(page, 50)
+	local row = CreateRow(page, 45)
 	local btn = Instance.new("TextButton", row)
 	btn.Size = UDim2.new(1, 0, 1, 0); btn.BackgroundTransparency = 1; btn.Text = text
-	btn.TextColor3 = Color3.fromRGB(220, 220, 220); btn.Font = Enum.Font.GothamBold; btn.TextSize = 14
+	btn.TextColor3 = Color3.fromRGB(220, 220, 220); btn.Font = Enum.Font.GothamBold; btn.TextSize = 13
 	btn.MouseButton1Click:Connect(function() if callback then callback() end end)
 end
 
@@ -679,67 +773,105 @@ end)
 -- 4. CONSTRUCTION DU HUB
 -- ==========================================
 
+local iconAuto = "7734053426" 
 local iconFarm = "7733674079"
 local iconPlayer = "7733954760"
 local iconTeleport = "7733992829"
-local iconShop = "7734068321" -- ✅ Inversé
-local iconConfig = "6031280882" -- ✅ Inversé
+local iconShop = "6031280882" 
+local iconConfig = "7734068321" 
 
+local pgAuto = CreateTab("Auto", iconAuto)
 local pgFarm = CreateTab("Farm", iconFarm)
 local pgSelf = CreateTab("Self", iconPlayer)
 local pgTp = CreateTab("Teleport", iconTeleport)
 local pgShop = CreateTab("Shop", iconShop)
 local pgConfig = CreateTab("Configs", iconConfig)
 
+-- --- PAGE AUTO ---
+local secAutoSkills = CreateSection(pgAuto, "Auto Skills", true)
+CreateDropdown(secAutoSkills, "Select Skill", {"All", "Z", "X", "C", "V", "F"}, "All", function(v) selectedSkill = v end)
+CreateToggle(secAutoSkills, "Enable Auto Skills", false, function(v) autoSkillEnabled = v end)
+
+local secSummon = CreateSection(pgAuto, "Auto Summon Boss", true)
+CreateDropdown(secSummon, "Select Boss", summonBossesList, selectedSummonBoss, function(v) selectedSummonBoss = v end)
+CreateDropdown(secSummon, "Select Difficulty", difficultyList, selectedDifficulty, function(v) selectedDifficulty = v end)
+CreateButton(secSummon, "Summon Boss", function()
+	pcall(function()
+		local remote = game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("RequestSummonBoss")
+		if bossesWithDifficulty[selectedSummonBoss] then
+			remote:FireServer(selectedSummonBoss, selectedDifficulty)
+		else
+			remote:FireServer(selectedSummonBoss)
+		end
+	end)
+end)
+
+local secAutoStatsMaster = CreateSection(pgAuto, "Auto Stats (Controls)", false)
+CreateToggle(secAutoStatsMaster, "Enable Auto Stats (Loop)", false, function(v) autoStatsEnabled = v; if v then startAutoStatsLoop() end end)
+CreateButton(secAutoStatsMaster, "Reset All Stats", function() pcall(function() game:GetService("ReplicatedStorage"):WaitForChild("RemoteEvents"):WaitForChild("ResetStats"):FireServer() end) end)
+
+local secAutoStatsConfig = CreateSection(pgAuto, "Stats Configuration", false)
+CreateTitle(secAutoStatsConfig, "Melee")
+CreateInput(secAutoStatsConfig, "Points to add", "Max 13000", statPoints.Melee, function(v) statPoints.Melee = math.clamp(tonumber(v) or 1, 1, 13000) end)
+CreateToggle(secAutoStatsConfig, "Auto Allocate Melee", false, function(v) autoStatsToggles.Melee = v end)
+
+CreateTitle(secAutoStatsConfig, "Defense")
+CreateInput(secAutoStatsConfig, "Points to add", "Max 13000", statPoints.Defense, function(v) statPoints.Defense = math.clamp(tonumber(v) or 1, 1, 13000) end)
+CreateToggle(secAutoStatsConfig, "Auto Allocate Defense", false, function(v) autoStatsToggles.Defense = v end)
+
+CreateTitle(secAutoStatsConfig, "Sword")
+CreateInput(secAutoStatsConfig, "Points to add", "Max 13000", statPoints.Sword, function(v) statPoints.Sword = math.clamp(tonumber(v) or 1, 1, 13000) end)
+CreateToggle(secAutoStatsConfig, "Auto Allocate Sword", false, function(v) autoStatsToggles.Sword = v end)
+
+CreateTitle(secAutoStatsConfig, "Power")
+CreateInput(secAutoStatsConfig, "Points to add", "Max 13000", statPoints.Power, function(v) statPoints.Power = math.clamp(tonumber(v) or 1, 1, 13000) end)
+CreateToggle(secAutoStatsConfig, "Auto Allocate Power", false, function(v) autoStatsToggles.Power = v end)
+
 -- --- PAGE FARM ---
-CreateTitle(pgFarm, "Combat Target")
-CreateDropdown(pgFarm, "Select Monster", MobNames, selectedMob, function(v) selectedMob = v; currentFarmIsland = "" end)
-CreateToggle(pgFarm, "Auto Farm Monster", false, function(v) autoFarmMob = v; if v then autoFarmBoss, autoFarmTower, killauraEnabled = false, false, false; startCombatLoop() end end)
+local secFarmTarget = CreateSection(pgFarm, "Auto Farm", true)
+CreateDropdown(secFarmTarget, "Select Monster", MobNames, selectedMob, function(v) selectedMob = v; currentFarmIsland = "" end)
+CreateToggle(secFarmTarget, "Auto Farm Monster", false, function(v) autoFarmMob = v; if v then autoFarmBoss, autoFarmTower, killauraEnabled = false, false, false; startCombatLoop() end end)
 
-CreateDropdown(pgFarm, "Select Boss", BossNames, selectedBoss, function(v) selectedBoss = v; currentFarmIsland = "" end)
-CreateToggle(pgFarm, "Auto Farm Boss", false, function(v) autoFarmBoss = v; if v then autoFarmMob, autoFarmTower, killauraEnabled = false, false, false; startCombatLoop() end end)
+CreateDropdown(secFarmTarget, "Select Boss", BossNames, selectedBoss, function(v) selectedBoss = v; currentFarmIsland = "" end)
+CreateToggle(secFarmTarget, "Auto Farm Boss", false, function(v) autoFarmBoss = v; if v then autoFarmMob, autoFarmTower, killauraEnabled = false, false, false; startCombatLoop() end end)
 
-CreateToggle(pgFarm, "Auto Farm Nearest (Tower)", false, function(v) autoFarmTower = v; if v then autoFarmMob, autoFarmBoss, killauraEnabled = false, false, false; startCombatLoop() end end)
+CreateToggle(secFarmTarget, "Auto Farm Nearest (Tower)", false, function(v) autoFarmTower = v; if v then autoFarmMob, autoFarmBoss, killauraEnabled = false, false, false; startCombatLoop() end end)
 
-CreateTitle(pgFarm, "Auto Skills")
-CreateDropdown(pgFarm, "Select Skill", {"All", "Z", "X", "C", "V", "F"}, "All", function(v) selectedSkill = v end)
-CreateToggle(pgFarm, "Enable Auto Skills", false, function(v) autoSkillEnabled = v end)
-
-CreateTitle(pgFarm, "Settings & Speed")
-CreateSlider(pgFarm, "Tween Speed (Approche)", 50, 500, 150, function(v) tweenSpeed = v end)
-CreateSlider(pgFarm, "Distance From Target (Height)", 0, 30, 8, function(v) mobHeight = v end)
+local secFarmSet = CreateSection(pgFarm, "Settings & Speed", false)
+CreateSlider(secFarmSet, "Tween Speed (Approche)", 50, 500, 150, function(v) tweenSpeed = v end)
+CreateSlider(secFarmSet, "Distance From Target (Height)", 0, 30, 8, function(v) mobHeight = v end)
 
 -- --- PAGE SELF ---
-CreateTitle(pgSelf, "Combat Assist (Aura)")
-CreateToggle(pgSelf, "KillAura (Focus Selected Mob)", false, function(v) killauraEnabled = v; if v then autoFarmMob, autoFarmBoss, autoFarmTower = false, false, false; startCombatLoop() end end)
-CreateSlider(pgSelf, "Aura Range (Studs)", 10, 1000, 500, function(v) combatRadius = v end)
+local secAura = CreateSection(pgSelf, "Combat Assist (Aura)", true)
+CreateToggle(secAura, "KillAura (Focus Selected Mob)", false, function(v) killauraEnabled = v; if v then autoFarmMob, autoFarmBoss, autoFarmTower = false, false, false; startCombatLoop() end end)
+CreateSlider(secAura, "Aura Range (Studs)", 10, 1000, 500, function(v) combatRadius = v end)
 
-CreateTitle(pgSelf, "Local Player")
-CreateSlider(pgSelf, "WalkSpeed", 16, 250, 50, function(v) walkSpeedValue = v; updateSpeed() end)
-CreateToggle(pgSelf, "Enable WalkSpeed", false, function(v) walkSpeedEnabled = v; updateSpeed() end)
-CreateToggle(pgSelf, "Infinite Jump", false, function(v) infJumpEnabled = v end)
+local secPlayer = CreateSection(pgSelf, "Local Player", false)
+CreateSlider(secPlayer, "WalkSpeed", 16, 250, 50, function(v) walkSpeedValue = v; updateSpeed() end)
+CreateToggle(secPlayer, "Enable WalkSpeed", false, function(v) walkSpeedEnabled = v; updateSpeed() end)
+CreateToggle(secPlayer, "Infinite Jump", false, function(v) infJumpEnabled = v end)
 
-CreateTitle(pgSelf, "Exploits")
-CreateSlider(pgSelf, "Fly Speed", 10, 300, 50, function(v) flySpeedValue = v end)
-CreateToggle(pgSelf, "Fly Mode", false, function(v) flyEnabled = v; toggleFly() end)
-CreateToggle(pgSelf, "No Clip", false, function(v) noClipEnabled = v; if v then enableNoClip() else disableNoClip() end end)
+local secExploits = CreateSection(pgSelf, "Exploits", false)
+CreateSlider(secExploits, "Fly Speed", 10, 300, 50, function(v) flySpeedValue = v end)
+CreateToggle(secExploits, "Fly Mode", false, function(v) flyEnabled = v; toggleFly() end)
+CreateToggle(secExploits, "No Clip", false, function(v) noClipEnabled = v; if v then enableNoClip() else disableNoClip() end end)
 
 -- --- PAGE TELEPORT ---
-CreateTitle(pgTp, "World Travel (Islands)")
-CreateDropdown(pgTp, "Select Island", IslandNames, selectedIsland, function(v) selectedIsland = v end)
-CreateButton(pgTp, "Teleport to Island", function() teleportToIsland(selectedIsland) end)
+local secWorld = CreateSection(pgTp, "World Travel (Islands)", true)
+CreateDropdown(secWorld, "Select Island", IslandNames, selectedIsland, function(v) selectedIsland = v end)
+CreateButton(secWorld, "Teleport to Island", function() teleportToIsland(selectedIsland) end)
 
-CreateTitle(pgTp, "NPC Teleport")
-CreateDropdown(pgTp, "Select NPC", NpcNames, selectedNPC, function(v) selectedNPC = v end)
-CreateButton(pgTp, "Teleport to NPC", function() teleportToSpecificNPC(selectedNPC) end)
+local secNPC = CreateSection(pgTp, "NPC Teleport", true)
+CreateDropdown(secNPC, "Select NPC", NpcNames, selectedNPC, function(v) selectedNPC = v end)
+CreateButton(secNPC, "Teleport to NPC", function() teleportToSpecificNPC(selectedNPC) end)
 
 -- --- PAGE SHOP ---
-CreateTitle(pgShop, "Merchant Shop")
-CreateDropdown(pgShop, "Select Item", shopItemsList, selectedShopItem, function(v) selectedShopItem = v end)
-CreateInput(pgShop, "Amount to Buy", "Write your input there", shopBuyAmount, function(v) shopBuyAmount = tonumber(v) or 1 end)
-CreateInput(pgShop, "Delay To Buy (Seconds)", "Write your input there", shopBuyDelay, function(v) shopBuyDelay = tonumber(v) or 0 end)
-CreateToggle(pgShop, "Auto Buy Merchant", false, function(v) autoBuyEnabled = v; if v then startAutoBuyLoop() end end)
-CreateButton(pgShop, "Buy Once", function() 
+local secShop = CreateSection(pgShop, "Merchant Shop", true)
+CreateDropdown(secShop, "Select Item", shopItemsList, selectedShopItem, function(v) selectedShopItem = v end)
+CreateInput(secShop, "Amount to Buy", "Max Quantity", shopBuyAmount, function(v) shopBuyAmount = tonumber(v) or 1 end)
+CreateInput(secShop, "Delay To Buy (Seconds)", "Delay", shopBuyDelay, function(v) shopBuyDelay = tonumber(v) or 0 end)
+CreateToggle(secShop, "Auto Buy Merchant", false, function(v) autoBuyEnabled = v; if v then startAutoBuyLoop() end end)
+CreateButton(secShop, "Buy Once", function() 
 	pcall(function() 
 		local args = { selectedShopItem, tonumber(shopBuyAmount) or 1 }
 		game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("MerchantRemotes"):WaitForChild("PurchaseMerchantItem"):InvokeServer(unpack(args))
@@ -747,10 +879,10 @@ CreateButton(pgShop, "Buy Once", function()
 end)
 
 -- --- PAGE CONFIGS ---
-CreateTitle(pgConfig, "Menu Settings")
-CreateKeybind(pgConfig, "Toggle UI Key", UIConfig.ToggleKey, function(newKey) UIConfig.ToggleKey = newKey end)
-CreateSlider(pgConfig, "Menu Opacity", 10, 100, 80, function(v) mainFrame.BackgroundTransparency = 1 - (v/100) end)
-CreateButton(pgConfig, "Unload Interface", function() if targetGui:FindFirstChild("MxFHubPremium") then targetGui.MxFHubPremium:Destroy() end end)
+local secConfig = CreateSection(pgConfig, "Menu Settings", true)
+CreateKeybind(secConfig, "Toggle UI Key", UIConfig.ToggleKey, function(newKey) UIConfig.ToggleKey = newKey end)
+CreateSlider(secConfig, "Menu Opacity", 10, 100, 80, function(v) mainFrame.BackgroundTransparency = 1 - (v/100) end)
+CreateButton(secConfig, "Unload Interface", function() if targetGui:FindFirstChild("MxFHubPremium") then targetGui.MxFHubPremium:Destroy() end end)
 
 -- Dragging Main
 local dragS, dragP, startP
@@ -766,5 +898,5 @@ UIS.InputBegan:Connect(function(input, gp)
 end)
 
 -- Init
-navList:GetChildren()[2].MouseButton1Click:Fire()
+navList:GetChildren()[1].MouseButton1Click:Fire()
 print("MxF Hub The Ultimate Edition Chargé !")
