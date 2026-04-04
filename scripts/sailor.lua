@@ -1,6 +1,6 @@
 -- ======================================================
--- 👑 MxF HUB - SPEED HUB X EDITION (V2)
--- UI Agrandie, Dropdowns Fixés, Lignes de séparation
+-- 👑 MxF HUB - SPEED HUB X EDITION (V3 - ULTIMATE)
+-- Smart NPC TP, Sliders de Farm, Icônes fixées
 -- ======================================================
 
 local Players = game:GetService("Players")
@@ -22,9 +22,10 @@ if targetGui:FindFirstChild("MxFHubPremium") then targetGui.MxFHubPremium:Destro
 local UIConfig = {
 	Accent = Color3.fromRGB(255, 255, 255),
 	ToggleKey = Enum.KeyCode.Insert,
-	WindowSize = UDim2.new(0, 720, 0, 480), -- Menu plus grand
+	WindowSize = UDim2.new(0, 720, 0, 480),
 }
 
+-- Mobs & Bosses
 local MobDatabase = {
 	["AcademyTeacher"] = "Academy", ["Arena Fighter"] = "Lawless", ["Curse"] = "Shinjuku",
 	["DesertBandit"] = "Desert", ["FrostRogue"] = "Snow", ["Hollow"] = "HollowIsland",
@@ -38,12 +39,41 @@ local BossDatabase = {
 	["ThiefBoss"] = "Starter"
 }
 
+-- Liste des NPCs
+local NpcNames = {
+	"AizenMovesetNPC", "AizenQuestlineBuff", "AlucardBuyer", "AnosBossSummonerNPC", "AnosBuyerNPC", "AnosQuestNPC", 
+	"ArtifactsUnlocker", "AscendNPC", "AtomicBossSummonerNPC", "AtomicBuyer", "AtomicQuestlineBuff", "BabylonCraftNPC", 
+	"BlessedMaidenBuyerNPC", "BlessedMaidenMasteryNPC", "BlessingNPC", "BossRushMerchantNPC", "BossRushPortalNPC", 
+	"BossRushShopNPC", "CidBuyer", "CoinFruitDealer", "ConquerorHakiNPC", "DarkBladeNPC", "DungeonMerchantNPC", 
+	"DungeonPortalsNPC", "EnchantNPC", "ExchangeNPC", "GemFruitDealer", "GilgameshBuyerNPC", "GojoCraftNPC", 
+	"GojoMasteryNPC", "GojoMovesetNPC", "GrailCraftNPC", "GroupRewardNPC", "GryphonBuyerNPC", "HakiQuestNPC", 
+	"HogyokuQuestNPC", "IchigoBuyer", "InfiniteTowerMerchantNPC", "InfiniteTowerPortalNPC", "InfiniteTowerStatShopNPC", 
+	"JinwooMovesetNPC", "Katana", "MadokaBuyer", "MerchantNPC", "MoonSlayerBuff", "MoonSlayerSeller", "ObservationBuyer", 
+	"PowerNPC", "QinShiBuyer", "RagnaBuyer", "RagnaQuestlineBuff", "RerollStatNPC", "RimuruBuyer", "RimuruMasteryNPC", 
+	"RimuruSummonerNPC", "SaberAlterBuyerNPC", "SaberAlterMasteryNPC", "ShadowMonarchBuyerNPC", "ShadowMonarchQuestlineBuff", 
+	"ShadowQuestlineBuff", "SkillTreeNPC", "SlimeCraftNPC", "SpecPassivesNPC", "StorageNPC", "StrongestBossSummonerNPC", 
+	"StrongestShinobiBuyerNPC", "StrongestShinobiMasteryNPC", "StrongestinHistoryBuyerNPC", "StrongestofTodayBuyerNPC", 
+	"SukunaCraftNPC", "SukunaMasteryNPC", "SukunaMovesetNPC", "SummonBossNPC", "TitlesNPC", "TraitNPC", "TrueAizenBossSummonerNPC", 
+	"TrueAizenBuyerNPC", "TrueAizenFUnlockNPC", "YamatoBuyerNPC", "YujiBuyerNPC"
+}
+
+-- Mapping intelligent pour déduire l'île du NPC s'il n'est pas encore chargé
+local NpcIslandMap = {
+	["AizenMovesetNPC"] = "HollowIsland", ["AizenQuestlineBuff"] = "HollowIsland", ["TrueAizenBossSummonerNPC"] = "HollowIsland", 
+	["TrueAizenBuyerNPC"] = "HollowIsland", ["TrueAizenFUnlockNPC"] = "HollowIsland", ["HogyokuQuestNPC"] = "HollowIsland",
+	["GojoCraftNPC"] = "Shibuya", ["GojoMasteryNPC"] = "Shibuya", ["GojoMovesetNPC"] = "Shibuya", 
+	["SukunaCraftNPC"] = "Shibuya", ["SukunaMasteryNPC"] = "Shibuya", ["SukunaMovesetNPC"] = "Shibuya", ["YujiBuyerNPC"] = "Shibuya",
+	["StrongestShinobiBuyerNPC"] = "Ninja", ["StrongestShinobiMasteryNPC"] = "Ninja",
+	["SlimeCraftNPC"] = "Slime", ["RimuruBuyer"] = "Slime", ["RimuruMasteryNPC"] = "Slime", ["RimuruSummonerNPC"] = "Slime",
+	["YamatoBuyerNPC"] = "Judgement"
+}
+
 local MobNames, BossNames, IslandNames = {}, {}, {}
 for m, i in pairs(MobDatabase) do table.insert(MobNames, m); if not table.find(IslandNames, i) then table.insert(IslandNames, i) end end
 for b, i in pairs(BossDatabase) do table.insert(BossNames, b); if not table.find(IslandNames, i) then table.insert(IslandNames, i) end end
-table.sort(MobNames); table.sort(BossNames); table.sort(IslandNames)
+table.sort(MobNames); table.sort(BossNames); table.sort(IslandNames); table.sort(NpcNames)
 
-local selectedMob, selectedBoss, selectedIsland = MobNames[1], BossNames[1], IslandNames[1]
+local selectedMob, selectedBoss, selectedIsland, selectedNPC = MobNames[1], BossNames[1], IslandNames[1], NpcNames[1]
 local autoFarmMob, autoFarmBoss, killauraEnabled = false, false, false
 local mobHeight, tweenSpeed, combatCooldown, combatRadius = 8, 150, 0.1, 500
 local combatCoroutine = nil
@@ -59,6 +89,31 @@ local bodyVelocity, bodyGyro, speedConn, flyConn, noClipConn
 -- ==========================================
 local function teleportToIsland(islandName)
 	pcall(function() ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("TeleportToPortal"):FireServer(islandName) end)
+end
+
+local function teleportToSpecificNPC(npcName)
+	local function tryTP()
+		local npc = workspace:FindFirstChild("ServiceNPCs") and workspace.ServiceNPCs:FindFirstChild(npcName)
+		if npc and npc:FindFirstChild("HumanoidRootPart") then
+			if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+				player.Character.HumanoidRootPart.CFrame = npc.HumanoidRootPart.CFrame + Vector3.new(0, 3, 0)
+				return true
+			end
+		end
+		return false
+	end
+
+	-- 1. Essayer de TP directement s'il est déjà rendu
+	if tryTP() then return end
+
+	-- 2. Sinon, déduire l'île, TP dessus, attendre et réessayer
+	local guessedIsland = NpcIslandMap[npcName] or "Starter" -- Par défaut sur Starter si non répertorié
+	teleportToIsland(guessedIsland)
+	task.wait(2.5)
+	
+	if not tryTP() then
+		print("NPC non trouvé même après TP sur l'île estimée (" .. guessedIsland .. ").")
+	end
 end
 
 local function getTarget(targetName, isSpecific)
@@ -212,7 +267,7 @@ sidebar.BackgroundTransparency = 0.4
 sidebar.BorderSizePixel = 0
 Instance.new("UICorner", sidebar).CornerRadius = UDim.new(0, 10)
 
--- Logo MxF via le lien
+-- Logo MxF via le lien fourni
 local logoImg = Instance.new("ImageLabel", sidebar)
 logoImg.Size = UDim2.new(0, 40, 0, 40); logoImg.Position = UDim2.new(0, 15, 0, 15)
 logoImg.BackgroundTransparency = 1; logoImg.ScaleType = Enum.ScaleType.Fit
@@ -223,7 +278,7 @@ pcall(function()
 		writefile("mxf_logo.png", data)
 		logoImg.Image = getcustomasset("mxf_logo.png")
 	else
-		logoImg.Image = "rbxassetid://6026568227" -- Secours
+		logoImg.Image = "rbxassetid://10629237000" -- Secours si l'exécuteur ne supporte pas l'image
 	end
 end)
 
@@ -279,10 +334,7 @@ local function CreateTab(name, iconId)
 	local page = Instance.new("ScrollingFrame", container)
 	page.Size = UDim2.new(1, 0, 1, -55); page.Position = UDim2.new(0, 0, 0, 55); page.BackgroundTransparency = 1; page.ScrollBarThickness = 2; page.Visible = false
 	local pageLayout = Instance.new("UIListLayout", page); pageLayout.Padding = UDim.new(0, 10)
-	
-	-- Mise à jour robuste de la taille de la page pour le scroll
-	local function updateSize() page.CanvasSize = UDim2.new(0, 0, 0, pageLayout.AbsoluteContentSize.Y + 20) end
-	pageLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(updateSize)
+	page.AutomaticCanvasSize = Enum.AutomaticSize.Y
 
 	Pages[name] = page
 
@@ -367,7 +419,7 @@ local function CreateSlider(page, text, min, max, default, callback)
 	Instance.new("UICorner", sliderBg).CornerRadius = UDim.new(1, 0)
 	
 	local fill = Instance.new("Frame", sliderBg)
-	fill.Size = UDim2.new((default-min)/(max-min), 0, 1, 0); fill.BackgroundColor3 = UIConfig.Accent; Instance.new("UICorner", fill).CornerRadius = UDim.new(1, 0)
+	fill.Size = UDim2.new((default-min)/(max-min), 0, 1, 0); fill.BackgroundColor3 = Color3.fromRGB(255, 255, 255); Instance.new("UICorner", fill).CornerRadius = UDim.new(1, 0)
 	
 	local dragging = false
 	local function update()
@@ -410,8 +462,6 @@ local function CreateDropdown(page, text, options, default, callback)
 		open = not open; icon.Text = open and "▲" or "▼"
 		local targetSize = open and (layout.AbsoluteContentSize.Y + 65) or 50
 		TweenService:Create(row, TweenInfo.new(0.2), {Size = UDim2.new(1, -10, 0, targetSize)}):Play()
-		-- Force update the page layout so the dropdown doesn't get cut off
-		task.delay(0.25, function() if currentTab then currentTab.page.CanvasSize = UDim2.new(0, 0, 0, currentTab.page:FindFirstChildOfClass("UIListLayout").AbsoluteContentSize.Y + 20) end end)
 	end)
 
 	for _, opt in ipairs(options) do
@@ -434,17 +484,30 @@ local function CreateButton(page, text, callback)
 	btn.MouseButton1Click:Connect(function() if callback then callback() end end)
 end
 
+-- Search Logic
+searchBox:GetPropertyChangedSignal("Text"):Connect(function()
+	local filter = string.lower(searchBox.Text)
+	if currentTab then
+		for _, child in ipairs(currentTab.page:GetChildren()) do
+			if child:IsA("Frame") and not child:FindFirstChild("UIListLayout") then
+				local label = child:FindFirstChildOfClass("TextLabel")
+				if label then child.Visible = string.find(string.lower(label.Text), filter) ~= nil end
+			end
+		end
+	end
+end)
+
 -- ==========================================
 -- 4. CONSTRUCTION DU HUB
 -- ==========================================
 
--- IDs Icones (Matérial Design)
-local iconFarm = "7733674079"
-local iconPlayer = "7733954760"
-local iconTeleport = "7733956484"
-local iconConfig = "7734068321"
+-- Icones certifiées
+local iconFarm = "10629237000"
+local iconPlayer = "10629227546"
+local iconTeleport = "10629207572"
+local iconConfig = "10629225907"
 
-local pgFarm = CreateTab("Main Farm", iconFarm)
+local pgFarm = CreateTab("Farm", iconFarm)
 local pgPlayer = CreateTab("Player", iconPlayer)
 local pgTp = CreateTab("Teleport", iconTeleport)
 local pgConfig = CreateTab("Configs", iconConfig)
@@ -456,9 +519,12 @@ CreateToggle(pgFarm, "Auto Farm Monster", false, function(v) autoFarmMob = v; if
 CreateDropdown(pgFarm, "Select Boss", BossNames, selectedBoss, function(v) selectedBoss = v end)
 CreateToggle(pgFarm, "Auto Farm Boss", false, function(v) autoFarmBoss = v; if v then autoFarmMob, killauraEnabled = false, false; startCombatLoop() end end)
 
+CreateTitle(pgFarm, "Settings & Speed")
+CreateSlider(pgFarm, "Tween Speed (Approche)", 50, 500, 150, function(v) tweenSpeed = v end)
+CreateSlider(pgFarm, "Distance From Target (Height)", 0, 30, 8, function(v) mobHeight = v end)
+
 CreateTitle(pgFarm, "Combat Assist")
 CreateToggle(pgFarm, "KillAura", false, function(v) killauraEnabled = v; if v then autoFarmMob, autoFarmBoss = false, false; startCombatLoop() end end)
-CreateSlider(pgFarm, "Attack Radius", 10, 1000, 500, function(v) combatRadius = v end)
 
 -- --- PAGE PLAYER ---
 CreateTitle(pgPlayer, "Local Player")
@@ -472,28 +538,18 @@ CreateToggle(pgPlayer, "Fly Mode", false, function(v) flyEnabled = v; toggleFly(
 CreateToggle(pgPlayer, "No Clip", false, function(v) noClipEnabled = v; if v then enableNoClip() else disableNoClip() end end)
 
 -- --- PAGE TELEPORT ---
-CreateTitle(pgTp, "World Travel")
+CreateTitle(pgTp, "World Travel (Islands)")
 CreateDropdown(pgTp, "Select Island", IslandNames, selectedIsland, function(v) selectedIsland = v end)
-CreateButton(pgTp, "Teleport Now", function() teleportToIsland(selectedIsland) end)
+CreateButton(pgTp, "Teleport to Island", function() teleportToIsland(selectedIsland) end)
+
+CreateTitle(pgTp, "NPC Teleport")
+CreateDropdown(pgTp, "Select NPC", NpcNames, selectedNPC, function(v) selectedNPC = v end)
+CreateButton(pgTp, "Teleport to NPC", function() teleportToSpecificNPC(selectedNPC) end)
 
 -- --- PAGE CONFIGS ---
 CreateTitle(pgConfig, "Menu Settings")
 CreateSlider(pgConfig, "Menu Opacity", 10, 100, 80, function(v) mainFrame.BackgroundTransparency = 1 - (v/100) end)
 CreateButton(pgConfig, "Unload Interface", function() if targetGui:FindFirstChild("MxFHubPremium") then targetGui.MxFHubPremium:Destroy() end end)
-
-
--- Search Logic
-searchBox:GetPropertyChangedSignal("Text"):Connect(function()
-	local filter = string.lower(searchBox.Text)
-	if currentTab then
-		for _, child in ipairs(currentTab.page:GetChildren()) do
-			if child:IsA("Frame") and not child:FindFirstChild("UIListLayout") then -- Exclure les titres
-				local label = child:FindFirstChildOfClass("TextLabel")
-				if label then child.Visible = string.find(string.lower(label.Text), filter) ~= nil end
-			end
-		end
-	end
-end)
 
 -- Dragging Main
 local dragS, dragP, startP
@@ -504,4 +560,4 @@ UIS.InputEnded:Connect(function(input) if input.UserInputType == Enum.UserInputT
 
 -- Init
 navList:GetChildren()[2].MouseButton1Click:Fire()
-print("MxF Hub SpeedX Edition Chargé !")
+print("MxF Hub Ultime Chargé !")
