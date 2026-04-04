@@ -100,7 +100,7 @@ local function teleportToSpecificNPC(npcName)
 	
 	-- 1. TP Strict au Portail
 	teleportToIsland(targetIsland)
-	task.wait(1.5) -- Laisse la zone charger à 100%
+	task.wait(0.5) -- Laisse la zone charger à 100%
 	
 	local npc = workspace:FindFirstChild("ServiceNPCs") and workspace.ServiceNPCs:FindFirstChild(npcName)
 	local char = player.Character
@@ -122,7 +122,7 @@ local function teleportToSpecificNPC(npcName)
 		local dist = (root.Position - targetCFrame.Position).Magnitude
 		
 		-- Vitesse Safe maximale fixée à 200 studs/s pour esquiver l'anti-cheat
-		local safeSpeed = 60
+		local safeSpeed = 120
 		local glideTime = math.clamp(dist / safeSpeed, 0.1, 15)
 		
 		local tween = TweenService:Create(root, TweenInfo.new(glideTime, Enum.EasingStyle.Linear), {CFrame = targetCFrame})
