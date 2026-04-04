@@ -1,6 +1,6 @@
 -- ======================================================
--- 👑 MxF HUB - SPEED HUB X EDITION (FINAL V7)
--- Safe NPC Tween, Hover Wait Spawn, Full Optimized
+-- 👑 MxF HUB - SPEED HUB X EDITION (FINAL V8)
+-- Smart NPC Mapping, All Islands, Safe Tween TP
 -- ======================================================
 
 local Players = game:GetService("Players")
@@ -39,49 +39,72 @@ local BossDatabase = {
 	["ThiefBoss"] = "Starter"
 }
 
-local NpcNames = {
-	"AizenMovesetNPC", "AizenQuestlineBuff", "AlucardBuyer", "AnosBossSummonerNPC", "AnosBuyerNPC", "AnosQuestNPC", 
-	"ArtifactsUnlocker", "AscendNPC", "AtomicBossSummonerNPC", "AtomicBuyer", "AtomicQuestlineBuff", "BabylonCraftNPC", 
-	"BlessedMaidenBuyerNPC", "BlessedMaidenMasteryNPC", "BlessingNPC", "BossRushMerchantNPC", "BossRushPortalNPC", 
-	"BossRushShopNPC", "CidBuyer", "CoinFruitDealer", "ConquerorHakiNPC", "DarkBladeNPC", "DungeonMerchantNPC", 
-	"DungeonPortalsNPC", "EnchantNPC", "ExchangeNPC", "GemFruitDealer", "GilgameshBuyerNPC", "GojoCraftNPC", 
-	"GojoMasteryNPC", "GojoMovesetNPC", "GrailCraftNPC", "GroupRewardNPC", "GryphonBuyerNPC", "HakiQuestNPC", 
-	"HogyokuQuestNPC", "IchigoBuyer", "InfiniteTowerMerchantNPC", "InfiniteTowerPortalNPC", "InfiniteTowerStatShopNPC", 
-	"JinwooMovesetNPC", "Katana", "MadokaBuyer", "MerchantNPC", "MoonSlayerBuff", "MoonSlayerSeller", "ObservationBuyer", 
-	"PowerNPC", "QinShiBuyer", "RagnaBuyer", "RagnaQuestlineBuff", "RerollStatNPC", "RimuruBuyer", "RimuruMasteryNPC", 
-	"RimuruSummonerNPC", "SaberAlterBuyerNPC", "SaberAlterMasteryNPC", "ShadowMonarchBuyerNPC", "ShadowMonarchQuestlineBuff", 
-	"ShadowQuestlineBuff", "SkillTreeNPC", "SlimeCraftNPC", "SpecPassivesNPC", "StorageNPC", "StrongestBossSummonerNPC", 
-	"StrongestShinobiBuyerNPC", "StrongestShinobiMasteryNPC", "StrongestinHistoryBuyerNPC", "StrongestofTodayBuyerNPC", 
-	"SukunaCraftNPC", "SukunaMasteryNPC", "SukunaMovesetNPC", "SummonBossNPC", "TitlesNPC", "TraitNPC", "TrueAizenBossSummonerNPC", 
-	"TrueAizenBuyerNPC", "TrueAizenFUnlockNPC", "YamatoBuyerNPC", "YujiBuyerNPC"
-}
-
+-- Mapping Intelligent des NPCs et de leurs îles
 local NpcIslandMap = {
-	["AizenMovesetNPC"] = "HollowIsland", ["AizenQuestlineBuff"] = "HollowIsland", ["TrueAizenBossSummonerNPC"] = "HollowIsland", 
-	["TrueAizenBuyerNPC"] = "HollowIsland", ["TrueAizenFUnlockNPC"] = "HollowIsland", ["HogyokuQuestNPC"] = "HollowIsland",
-	["GojoCraftNPC"] = "Shibuya", ["GojoMasteryNPC"] = "Shibuya", ["GojoMovesetNPC"] = "Shibuya", 
-	["SukunaCraftNPC"] = "Shibuya", ["SukunaMasteryNPC"] = "Shibuya", ["SukunaMovesetNPC"] = "Shibuya", ["YujiBuyerNPC"] = "Shibuya",
-	["StrongestShinobiBuyerNPC"] = "Ninja", ["StrongestShinobiMasteryNPC"] = "Ninja",
-	["SlimeCraftNPC"] = "Slime", ["RimuruBuyer"] = "Slime", ["RimuruMasteryNPC"] = "Slime", ["RimuruSummonerNPC"] = "Slime",
-	["YamatoBuyerNPC"] = "Judgement"
+	-- Dungeon
+	["DungeonMerchantNPC"] = "Dungeon", ["DungeonPortalsNPC"] = "Dungeon", ["ShadowMonarchBuyerNPC"] = "Dungeon", ["CidBuyer"] = "Dungeon",
+	-- Boss
+	["SummonBossNPC"] = "Boss", ["ExchangeNPC"] = "Boss", ["MoonSlayerBuff"] = "Boss", ["GilgameshBuyerNPC"] = "Boss", 
+	["SaberAlterBuyerNPC"] = "Boss", ["GrailCraftNPC"] = "Boss", ["BabylonCraftNPC"] = "Boss", ["SaberAlterMasteryNPC"] = "Boss", 
+	["QinShiBuyer"] = "Boss", ["MoonSlayerSeller"] = "Boss", ["BlessedMaidenBuyerNPC"] = "Boss", ["BlessedMaidenMasteryNPC"] = "Boss",
+	-- Jungle
+	["QuestNPC4"] = "Jungle", ["QuestNPC3"] = "Jungle",
+	-- DesertIsland
+	["QuestNPC5"] = "DesertIsland", ["ObservationBuyer"] = "DesertIsland", ["QuestNPC6"] = "DesertIsland",
+	-- SnowIsland
+	["DarkBladeNPC"] = "SnowIsland", ["RagnaQuestlineBuff"] = "SnowIsland", ["RagnaBuyer"] = "SnowIsland", ["HakiQuestNPC"] = "SnowIsland", 
+	["ArtifactsUnlocker"] = "SnowIsland", ["ArtifactMilestoneNPC"] = "SnowIsland", ["QuestNPC7"] = "SnowIsland", ["QuestNPC8"] = "SnowIsland",
+	-- Sailor
+	["AscendNPC"] = "Sailor", ["StorageNPC"] = "Sailor", ["TitlesNPC"] = "Sailor", ["GemFruitDealer"] = "Sailor", 
+	["MerchantNPC"] = "Sailor", ["CoinFruitDealer"] = "Sailor", ["RerollStatNPC"] = "Sailor", ["TraitNPC"] = "Sailor", 
+	["BossRushShopNPC"] = "Sailor", ["BossRushPortalNPC"] = "Sailor", ["BossRushMerchantNPC"] = "Sailor", 
+	["JinwooMovesetNPC"] = "Sailor", ["AlucardBuyer"] = "Sailor",
+	-- Shibuya
+	["GryphonBuyerNPC"] = "Shibuya", ["BlessingNPC"] = "Shibuya", ["EnchantNPC"] = "Shibuya", ["GojoMovesetNPC"] = "Shibuya", 
+	["YujiBuyerNPC"] = "Shibuya", ["SukunaMovesetNPC"] = "Shibuya", ["QuestNPC9"] = "Shibuya", ["QuestNPC10"] = "Shibuya", ["ConquerorHakiNPC"] = "Shibuya",
+	-- Hollow
+	["IchigoBuyer"] = "Hollow", ["AizenQuestlineBuff"] = "Hollow", ["HogyokuQuestNPC"] = "Hollow", ["AizenMovesetNPC"] = "Hollow", ["QuestNPC11"] = "Hollow",
+	-- Shinjuku
+	["QuestNPC12"] = "Shinjuku", ["QuestNPC13"] = "Shinjuku", ["StrongestinHistoryBuyerNPC"] = "Shinjuku", ["SukunaMasteryNPC"] = "Shinjuku", 
+	["StrongestBossSummonerNPC"] = "Shinjuku", ["GojoCraftNPC"] = "Shinjuku", ["GojoMasteryNPC"] = "Shinjuku", ["SukunaCraftNPC"] = "Shinjuku", ["StrongestofTodayBuyerNPC"] = "Shinjuku",
+	-- Slime
+	["QuestNPC14"] = "Slime", ["RimuruSummonerNPC"] = "Slime", ["SkillTreeNPC"] = "Slime", ["SlimeCraftNPC"] = "Slime", ["RimuruBuyer"] = "Slime", ["RimuruMasteryNPC"] = "Slime",
+	-- Academy
+	["AnosQuestNPC"] = "Academy", ["AnosBossSummonerNPC"] = "Academy", ["QuestNPC15"] = "Academy", ["AnosBuyerNPC"] = "Academy",
+	-- Judgement
+	["SpecPassivesNPC"] = "Judgement", ["QuestNPC16"] = "Judgement", ["YamatoBuyerNPC"] = "Judgement",
+	-- Soul
+	["TrueAizenBossSummonerNPC"] = "Soul", ["TrueAizenBuyerNPC"] = "Soul", ["TrueAizenFUnlockNPC"] = "Soul", ["QuestNPC17"] = "Soul",
+	-- Starter
+	["GroupRewardNPC"] = "Starter", ["QuestNPC2"] = "Starter", ["ShadowMonarchQuestlineBuff"] = "Starter", ["QuestNPC1"] = "Starter", 
+	["Katana"] = "Starter", ["ShadowQuestlineBuff"] = "Starter", ["MadokaBuyer"] = "Starter",
+	-- Ninja
+	["QuestNPC18"] = "Ninja", ["StrongestShinobiMasteryNPC"] = "Ninja", ["StrongestShinobiBuyerNPC"] = "Ninja",
+	-- Lawless
+	["PowerNPC"] = "Lawless", ["AtomicBossSummonerNPC"] = "Lawless", ["QuestNPC19"] = "Lawless", ["AtomicBuyer"] = "Lawless", ["AtomicQuestlineBuff"] = "Lawless",
+	-- Tower
+	["InfiniteTowerMerchantNPC"] = "Tower", ["InfiniteTowerPortalNPC"] = "Tower", ["InfiniteTowerStatShopNPC"] = "Tower"
 }
 
-local MobNames, BossNames, IslandNames = {}, {}, {}
+-- Création dynamique des listes déroulantes
+local MobNames, BossNames, IslandNames, NpcNames = {}, {}, {}, {}
+
 for m, i in pairs(MobDatabase) do table.insert(MobNames, m); if not table.find(IslandNames, i) then table.insert(IslandNames, i) end end
 for b, i in pairs(BossDatabase) do table.insert(BossNames, b); if not table.find(IslandNames, i) then table.insert(IslandNames, i) end end
+for npc, i in pairs(NpcIslandMap) do 
+	table.insert(NpcNames, npc)
+	if not table.find(IslandNames, i) then table.insert(IslandNames, i) end
+end
+
 table.sort(MobNames); table.sort(BossNames); table.sort(IslandNames); table.sort(NpcNames)
 
 local selectedMob, selectedBoss, selectedIsland, selectedNPC = MobNames[1], BossNames[1], IslandNames[1], NpcNames[1]
 local autoFarmMob, autoFarmBoss, autoFarmTower, killauraEnabled = false, false, false, false
-
--- État pour éviter les TP en boucle
 local isOnRightIsland = false 
 
 -- Skills Vars
 local selectedSkill = "All"
 local autoSkillEnabled = false
-
-local targetPlayers = false
 local mobHeight, tweenSpeed, combatCooldown, combatRadius = 8, 150, 0.1, 500
 local combatCoroutine, currentTarget = nil, nil
 
@@ -124,7 +147,7 @@ local function teleportToSpecificNPC(npcName)
 		-- On Tween vers le PNJ (Anti-Cheat Bypass)
 		local targetCFrame = npc.HumanoidRootPart.CFrame * CFrame.new(0, 0, -4)
 		local dist = (root.Position - targetCFrame.Position).Magnitude
-		local glideTime = math.clamp(dist / 250, 0.1, 5) -- Vitesse de glissade à 250 studs/s
+		local glideTime = math.clamp(dist / 250, 0.1, 5) -- Vitesse de glissade (250 studs/s)
 		
 		local tween = TweenService:Create(root, TweenInfo.new(glideTime, Enum.EasingStyle.Linear), {CFrame = targetCFrame})
 		tween:Play()
@@ -132,7 +155,7 @@ local function teleportToSpecificNPC(npcName)
 		
 		if charHum then charHum.PlatformStand = false end
 	else
-		print("Erreur : Le NPC " .. npcName .. " est introuvable ou n'a pas chargé.")
+		print("Erreur : Le NPC " .. npcName .. " est introuvable sur l'île " .. targetIsland .. ".")
 	end
 end
 
@@ -169,7 +192,6 @@ local function getTarget(targetName, isSpecific)
 			end
 		end
 	end
-	
 	return closest, minDist
 end
 
@@ -192,9 +214,7 @@ local function startCombatLoop()
 					currentTarget = target
 					
 					if target and target:FindFirstChild("HumanoidRootPart") then
-						isOnRightIsland = true -- On a trouvé un mob, on est sur la bonne map
-						
-						-- CFrame de farm (-90 degrés face au sol)
+						isOnRightIsland = true 
 						local tpPos = target.HumanoidRootPart.Position + Vector3.new(0, mobHeight, 0)
 						local targetCFrame = CFrame.new(tpPos) * CFrame.Angles(math.rad(-90), 0, 0)
 
@@ -207,15 +227,12 @@ local function startCombatLoop()
 							pcall(function() remote:FireServer() end)
 						end
 					else 
-						-- Le mob n'est pas là (soit on n'est pas sur la bonne île, soit ils sont tous morts)
 						if not autoFarmTower then
 							if not isOnRightIsland then
-								-- On n'est pas encore arrivé, on se TP
 								teleportToIsland(island)
 								task.wait(3.5)
 								isOnRightIsland = true
 							else
-								-- On est sur l'île mais tout est mort : On FLOTTE et on attend le respawn !
 								root.Velocity, root.RotVelocity = Vector3.zero, Vector3.zero
 							end
 						else
@@ -335,7 +352,6 @@ Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 10)
 local stroke = Instance.new("UIStroke", mainFrame)
 stroke.Color = Color3.fromRGB(45, 45, 50); stroke.Thickness = 1.2
 
--- Sidebar
 local sidebar = Instance.new("Frame", mainFrame)
 sidebar.Size = UDim2.new(0, 200, 1, 0)
 sidebar.BackgroundColor3 = Color3.fromRGB(10, 11, 14)
@@ -343,7 +359,6 @@ sidebar.BackgroundTransparency = 0.4
 sidebar.BorderSizePixel = 0
 Instance.new("UICorner", sidebar).CornerRadius = UDim.new(0, 10)
 
--- Logo MxF
 local logoImg = Instance.new("ImageLabel", sidebar)
 logoImg.Size = UDim2.new(0, 40, 0, 40); logoImg.Position = UDim2.new(0, 15, 0, 15)
 logoImg.BackgroundTransparency = 1; logoImg.ScaleType = Enum.ScaleType.Fit
@@ -363,7 +378,6 @@ hubName.Size = UDim2.new(1, -70, 0, 40); hubName.Position = UDim2.new(0, 65, 0, 
 hubName.BackgroundTransparency = 1; hubName.Text = "MxF HUB"; hubName.TextColor3 = Color3.fromRGB(255, 255, 255)
 hubName.Font = Enum.Font.GothamBold; hubName.TextSize = 18; hubName.TextXAlignment = Enum.TextXAlignment.Left
 
--- Search Bar
 local searchFrame = Instance.new("Frame", sidebar)
 searchFrame.Size = UDim2.new(1, -30, 0, 36); searchFrame.Position = UDim2.new(0, 15, 0, 70)
 searchFrame.BackgroundColor3 = Color3.fromRGB(25, 26, 30); Instance.new("UICorner", searchFrame).CornerRadius = UDim.new(0, 6)
@@ -377,13 +391,11 @@ searchBox.Size = UDim2.new(1, -40, 1, 0); searchBox.Position = UDim2.new(0, 35, 
 searchBox.BackgroundTransparency = 1; searchBox.PlaceholderText = "Search..."; searchBox.Text = ""
 searchBox.TextColor3 = Color3.fromRGB(255, 255, 255); searchBox.Font = Enum.Font.GothamMedium; searchBox.TextSize = 14; searchBox.TextXAlignment = Enum.TextXAlignment.Left
 
--- Navigation Tabs
 local navList = Instance.new("ScrollingFrame", sidebar)
 navList.Size = UDim2.new(1, 0, 1, -120); navList.Position = UDim2.new(0, 0, 0, 120)
 navList.BackgroundTransparency = 1; navList.ScrollBarThickness = 0
 local navLayout = Instance.new("UIListLayout", navList); navLayout.Padding = UDim.new(0, 6); navLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 
--- Main Content Area
 local container = Instance.new("Frame", mainFrame)
 container.Size = UDim2.new(1, -210, 1, -20); container.Position = UDim2.new(0, 205, 0, 10)
 container.BackgroundTransparency = 1
@@ -533,9 +545,7 @@ local function CreateKeybind(page, text, defaultKey, callback)
 			currentKey = input.KeyCode
 			btn.Text = currentKey.Name
 			btn.TextColor3 = Color3.fromRGB(200, 200, 200)
-			isBinding = false
-			task.wait(0.1)
-			isBindingAny = false
+			isBinding = false; task.wait(0.1); isBindingAny = false
 			if callback then callback(currentKey) end
 		end
 	end)
@@ -624,24 +634,10 @@ local pgConfig = CreateTab("Configs", iconConfig)
 -- --- PAGE FARM ---
 CreateTitle(pgFarm, "Combat Target")
 CreateDropdown(pgFarm, "Select Monster", MobNames, selectedMob, function(v) selectedMob = v end)
-CreateToggle(pgFarm, "Auto Farm Monster", false, function(v) 
-	autoFarmMob = v; 
-	if v then 
-		autoFarmBoss, autoFarmTower, killauraEnabled = false, false, false
-		isOnRightIsland = false 
-		startCombatLoop() 
-	end 
-end)
+CreateToggle(pgFarm, "Auto Farm Monster", false, function(v) autoFarmMob = v; if v then autoFarmBoss, autoFarmTower, killauraEnabled = false, false, false; isOnRightIsland = false; startCombatLoop() end end)
 
 CreateDropdown(pgFarm, "Select Boss", BossNames, selectedBoss, function(v) selectedBoss = v end)
-CreateToggle(pgFarm, "Auto Farm Boss", false, function(v) 
-	autoFarmBoss = v; 
-	if v then 
-		autoFarmMob, autoFarmTower, killauraEnabled = false, false, false
-		isOnRightIsland = false
-		startCombatLoop() 
-	end 
-end)
+CreateToggle(pgFarm, "Auto Farm Boss", false, function(v) autoFarmBoss = v; if v then autoFarmMob, autoFarmTower, killauraEnabled = false, false, false; isOnRightIsland = false; startCombatLoop() end end)
 
 CreateToggle(pgFarm, "Auto Farm Nearest (Tower)", false, function(v) autoFarmTower = v; if v then autoFarmMob, autoFarmBoss, killauraEnabled = false, false, false; startCombatLoop() end end)
 
@@ -698,4 +694,4 @@ end)
 
 -- Init
 navList:GetChildren()[2].MouseButton1Click:Fire()
-print("MxF Hub The Ultimate Edition Chargé !")
+print("MxF Hub Ultime Chargé !")
