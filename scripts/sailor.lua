@@ -598,8 +598,8 @@ end)
 
 -- Init
 navList:GetChildren()[2].MouseButton1Click:Fire()
-print("MxF Hub SpeedX Edition Chargé !")
+print("MxF Hub!")
 
 -- Init
 navList:GetChildren()[2].MouseButton1Click:Fire()
-print("MxF Hub SpeedX Edition Chargé !")
+print("MxF Hub!")
