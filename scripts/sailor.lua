@@ -1,6 +1,6 @@
 -- ======================================================
--- MENU UI ELITE PRO - DESIGN PREMIUM & LOGO CUSTOM
--- Checkboxes, Color Picker RGB, Auto-Farm, etc.
+-- MENU UI ELITE PRO - SMART FARM & CONFIGS AVANCÉES
+-- Hauteurs réglables, Vitesse de Tween, Smart TP.
 -- ======================================================
 
 local Players = game:GetService("Players")
@@ -33,7 +33,8 @@ local MobDatabase = {
 }
 local BossDatabase = {
 	["YujiBoss"] = "Shibuya", ["SukunaBoss"] = "Shibuya", ["GojoBoss"] = "Shibuya",
-	["StrongestShinobiBoss"] = "Ninja", ["AizenBoss"] = "HollowIsland", ["YamatoBoss"] = "Judgement"
+	["StrongestShinobiBoss"] = "Ninja", ["AizenBoss"] = "HollowIsland", ["YamatoBoss"] = "Judgement",
+	["ThiefBoss"] = "Starter" -- Ajout du ThiefBoss ici
 }
 
 local MobNames, BossNames, IslandNames = {}, {}, {}
@@ -43,7 +44,11 @@ table.sort(MobNames); table.sort(BossNames); table.sort(IslandNames)
 
 local selectedMob, selectedBoss, selectedIsland = MobNames[1], BossNames[1], IslandNames[1]
 local autoFarmMob, autoFarmBoss, killauraEnabled, targetPlayers = false, false, false, false
+
+-- Variables de réglages
 local combatCooldown, combatRadius = 0.1, 500
+local mobHeight, bossHeight = 8, 8
+local tweenSpeed = 150 -- Vitesse de vol vers le mob
 local combatCoroutine, currentTarget = nil, nil
 local noClipEnabled, flyEnabled, FLY_SPEED = false, false, 50
 local noClipConnection, flyConnection, bodyVelocity, bodyGyro
@@ -53,6 +58,25 @@ local noClipConnection, flyConnection, bodyVelocity, bodyGyro
 -- ==========================================
 local function teleportToIsland(islandName)
 	pcall(function() ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("TeleportToPortal"):FireServer(islandName) end)
+end
+
+-- Fonction pour vérifier si le mob est déjà sur l'île actuelle (Smart TP)
+local function isMobRendered(targetName)
+	local npcsFolder = workspace:FindFirstChild("NPCs")
+	if npcsFolder then
+		for _, obj in ipairs(npcsFolder:GetDescendants()) do
+			if obj:IsA("Model") then
+				local match = string.find(obj.Name, targetName)
+				-- Filtre strict : si on cherche "Thief", on ignore "ThiefBoss"
+				if match and targetName == "Thief" and string.find(obj.Name, "Boss") then match = false end
+				
+				if match and obj:FindFirstChild("HumanoidRootPart") then
+					return true
+				end
+			end
+		end
+	end
+	return false
 end
 
 local function getTarget(targetName, isSpecific)
@@ -66,6 +90,10 @@ local function getTarget(targetName, isSpecific)
 		for _, obj in ipairs(npcsFolder:GetDescendants()) do
 			if obj:IsA("Model") and not string.find(string.lower(obj.Name), "quest") then
 				local match = isSpecific and string.find(obj.Name, targetName) or true
+				
+				-- Filtre strict pour éviter que Thief attaque ThiefBoss
+				if match and isSpecific and targetName == "Thief" and string.find(obj.Name, "Boss") then match = false end
+				
 				if match then
 					local hum = obj:FindFirstChild("Humanoid")
 					local root = obj:FindFirstChild("HumanoidRootPart")
@@ -109,14 +137,17 @@ local function startCombatLoop()
 					myRoot.Velocity, myRoot.RotVelocity = Vector3.zero, Vector3.zero
 					
 					local tName = autoFarmMob and selectedMob or selectedBoss
+					local currentHeight = autoFarmMob and mobHeight or bossHeight
 					local target = getTarget(tName, true)
 					
 					if target and target:FindFirstChild("HumanoidRootPart") then
-						local tpPos = target.HumanoidRootPart.Position + Vector3.new(0, 8, 0)
+						local tpPos = target.HumanoidRootPart.Position + Vector3.new(0, currentHeight, 0)
 						local dist = (myRoot.Position - tpPos).Magnitude
 						
 						if dist > 15 then
-							TweenService:Create(myRoot, TweenInfo.new(0.15, Enum.EasingStyle.Linear), {CFrame = CFrame.lookAt(tpPos, target.HumanoidRootPart.Position)}):Play()
+							-- Calcul dynamique du temps de vol basé sur la distance et la vitesse choisie
+							local tTime = math.clamp(dist / tweenSpeed, 0.05, 3)
+							TweenService:Create(myRoot, TweenInfo.new(tTime, Enum.EasingStyle.Linear), {CFrame = CFrame.lookAt(tpPos, target.HumanoidRootPart.Position)}):Play()
 						else
 							myRoot.CFrame = CFrame.lookAt(tpPos, target.HumanoidRootPart.Position)
 							pcall(function() remote:FireServer() end)
@@ -243,12 +274,10 @@ task.spawn(function()
 		local githubRawUrl = "LIEN_RAW_GITHUB_ICI"
 		
 		if githubRawUrl ~= "LIEN_RAW_GITHUB_ICI" and (writefile and getcustomasset) then
-			-- Télécharge l'image en arrière-plan et la sauvegarde temporairement
 			local imgData = game:HttpGet(githubRawUrl)
 			writefile("mxf.png", imgData)
 			logoIcon.Image = getcustomasset("mxf.png")
 		else
-			-- Si pas de lien ou pas de fonction (exécuteur basique), on met un texte à la place
 			local txt = Instance.new("TextLabel", logoContainer)
 			txt.Size = UDim2.new(1, 0, 1, 0); txt.BackgroundTransparency = 1
 			txt.Text = "MxF"; txt.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -480,15 +509,35 @@ UIS.InputEnded:Connect(function(input) if input.UserInputType == Enum.UserInputT
 
 createSection(pageCombat, "Système Auto Farm")
 createCycle(pageCombat, "Cible (Mob)", MobNames, selectedMob, function(v) selectedMob = v end)
-createCheckbox(pageCombat, "Auto Farm Mobs", false, function(v) autoFarmMob = v; if v then autoFarmBoss, killauraEnabled = false, false; teleportToIsland(MobDatabase[selectedMob]); task.wait(2); startCombatLoop() end end)
+createCheckbox(pageCombat, "Auto Farm Mobs", false, function(v) 
+	autoFarmMob = v; 
+	if v then 
+		autoFarmBoss, killauraEnabled = false, false; 
+		if not isMobRendered(selectedMob) then teleportToIsland(MobDatabase[selectedMob]); task.wait(2.5) end
+		startCombatLoop() 
+	end 
+end)
 
 createCycle(pageCombat, "Cible (Boss)", BossNames, selectedBoss, function(v) selectedBoss = v end)
-createCheckbox(pageCombat, "Auto Farm Boss", false, function(v) autoFarmBoss = v; if v then autoFarmMob, killauraEnabled = false, false; teleportToIsland(BossDatabase[selectedBoss]); task.wait(2); startCombatLoop() end end)
+createCheckbox(pageCombat, "Auto Farm Boss", false, function(v) 
+	autoFarmBoss = v; 
+	if v then 
+		autoFarmMob, killauraEnabled = false, false; 
+		if not isMobRendered(selectedBoss) then teleportToIsland(BossDatabase[selectedBoss]); task.wait(2.5) end
+		startCombatLoop() 
+	end 
+end)
+
+createSection(pageCombat, "Paramètres de Farm (TP)")
+createSlider(pageCombat, "Hauteur Mobs (Studs)", 0, 20, 8, function(v) mobHeight = v end)
+createSlider(pageCombat, "Hauteur Boss (Studs)", 0, 20, 8, function(v) bossHeight = v end)
+createSlider(pageCombat, "Vitesse d'approche (TP)", 50, 500, 150, function(v) tweenSpeed = v end)
 
 createSection(pageCombat, "Combat Assist (Sol)")
 createCheckbox(pageCombat, "KillAura", false, function(v) killauraEnabled = v; if v then autoFarmMob, autoFarmBoss = false, false; startCombatLoop() end end)
 createCheckbox(pageCombat, "Cibler les Joueurs", false, function(v) targetPlayers = v; currentTarget = nil end)
-createSlider(pageCombat, "Portée (Studs)", 10, 2000, 500, function(v) combatRadius = v end)
+createSlider(pageCombat, "Portée du Scan (Studs)", 10, 2000, 500, function(v) combatRadius = v end)
+createSlider(pageCombat, "Délai de Frappe (x100 ms)", 1, 100, 10, function(v) combatCooldown = v/100 end)
 
 createSection(pageLocal, "Exploits Mouvement")
 createCheckbox(pageLocal, "NoClip", false, function(v) noClipEnabled = v; if v then enableNoClip() else disableNoClip() end end)
@@ -534,4 +583,4 @@ for _, child in ipairs(sidebar:GetChildren()) do
 end
 pages.Combat.Visible = true
 
-print("Menu Elite Pro Injecté. Logo custom et Color Picker fonctionnels.")
+print("Menu Elite Pro Injecté. Filtre Boss & Smart TP Opérationnels.")
