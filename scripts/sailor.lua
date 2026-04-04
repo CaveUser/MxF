@@ -17,7 +17,7 @@ local targetGui = pcall(function() return CoreGui.Name end) and CoreGui or playe
 -- Variables d'état UI
 local isVisible = true
 local currentKeybind = Enum.KeyCode.Insert
-local accentColor = Color3.fromRGB(110, 160, 255) -- Bleu Premium par défaut
+local accentColor = Color3.fromRGB(110, 160, 255)
 local isBinding = false
 local themeObjects = {}
 
@@ -187,7 +187,7 @@ player.CharacterAdded:Connect(function()
 end)
 
 -- ==========================================
--- 3. CRÉATION DE L'INTERFACE ELITE PRO (REDESIGN)
+-- 3. CRÉATION DE L'INTERFACE
 -- ==========================================
 if targetGui:FindFirstChild("EliteProMenu") then targetGui.EliteProMenu:Destroy() end
 
@@ -196,7 +196,6 @@ screenGui.Name = "EliteProMenu"
 screenGui.ResetOnSpawn = false
 screenGui.Parent = targetGui
 
--- Cadre Principal
 local mainFrame = Instance.new("Frame")
 mainFrame.Name = "MainFrame"
 mainFrame.Size = UDim2.new(0, 750, 0, 480)
@@ -212,7 +211,6 @@ local mainStroke = Instance.new("UIStroke", mainFrame)
 mainStroke.Color = accentColor
 mainStroke.Thickness = 2
 
--- Barre Latérale (Sidebar)
 local sidebar = Instance.new("Frame")
 sidebar.Name = "Sidebar"
 sidebar.Size = UDim2.new(0, 180, 1, 0)
@@ -225,30 +223,41 @@ local sidebarLayout = Instance.new("UIListLayout", sidebar)
 sidebarLayout.Padding = UDim.new(0, 8)
 sidebarLayout.SortOrder = Enum.SortOrder.LayoutOrder
 local sidebarPadding = Instance.new("UIPadding", sidebar)
-sidebarPadding.PaddingLeft = UDim.new(0, 12); sidebarPadding.PaddingRight = UDim.new(0, 12)
+sidebarPadding.PaddingTop = UDim.new(0, 20); sidebarPadding.PaddingLeft = UDim.new(0, 12); sidebarPadding.PaddingRight = UDim.new(0, 12)
 
--- LOGO CUSTOM (mxf.png)
+-- 🔥 CHARGEMENT DU LOGO DEPUIS GITHUB 🔥
 local logoContainer = Instance.new("Frame", sidebar)
 logoContainer.Size = UDim2.new(1, 0, 0, 100)
 logoContainer.BackgroundTransparency = 1
-logoContainer.LayoutOrder = 0 -- Tout en haut
+logoContainer.LayoutOrder = 0
 
 local logoIcon = Instance.new("ImageLabel", logoContainer)
-logoIcon.Size = UDim2.new(0, 60, 0, 60)
-logoIcon.Position = UDim2.new(0.5, -30, 0.5, -20)
+logoIcon.Size = UDim2.new(0, 80, 0, 80)
+logoIcon.Position = UDim2.new(0.5, -40, 0.5, -40)
 logoIcon.BackgroundTransparency = 1
 logoIcon.ScaleType = Enum.ScaleType.Fit
--- SYSTÈME DE CHARGEMENT DU LOGO
-pcall(function()
-	if getcustomasset then
-		logoIcon.Image = getcustomasset("mxf.png") -- Charge depuis le dossier workspace de l'exécuteur
-	else
-		-- Mets ici l'ID Roblox de ton image si tu l'upload (ex: rbxassetid://123456789)
-		logoIcon.Image = "rbxassetid://0" 
-	end
+
+task.spawn(function()
+	pcall(function()
+		-- 👉 REMPLACE CE LIEN PAR LE LIEN "RAW" DE TON IMAGE SUR GITHUB
+		local githubRawUrl = "LIEN_RAW_GITHUB_ICI"
+		
+		if githubRawUrl ~= "LIEN_RAW_GITHUB_ICI" and (writefile and getcustomasset) then
+			-- Télécharge l'image en arrière-plan et la sauvegarde temporairement
+			local imgData = game:HttpGet(githubRawUrl)
+			writefile("mxf.png", imgData)
+			logoIcon.Image = getcustomasset("mxf.png")
+		else
+			-- Si pas de lien ou pas de fonction (exécuteur basique), on met un texte à la place
+			local txt = Instance.new("TextLabel", logoContainer)
+			txt.Size = UDim2.new(1, 0, 1, 0); txt.BackgroundTransparency = 1
+			txt.Text = "MxF"; txt.TextColor3 = Color3.fromRGB(255, 255, 255)
+			txt.Font = Enum.Font.GothamBold; txt.TextSize = 26
+		end
+	end)
 end)
 
--- Gestion du Contenu (Pages)
+
 local pages = {}
 local contentArea = Instance.new("Frame", mainFrame)
 contentArea.Size = UDim2.new(1, -190, 1, -20); contentArea.Position = UDim2.new(0, 185, 0, 10)
@@ -270,9 +279,6 @@ local pageLocal = createPage("Local")
 local pageTeleport = createPage("Teleport")
 local pageConfigs = createPage("Configs")
 
--- ==========================================
--- FONCTIONS UTILITAIRES UI (DESIGN PREMIUM)
--- ==========================================
 local tabOrder = 1
 local function createTab(name)
 	local btn = Instance.new("TextButton", sidebar)
@@ -407,7 +413,6 @@ local function createButton(page, text, callback)
 	btn.MouseButton1Click:Connect(function() if callback then callback() end end)
 end
 
--- VRAI COLOR PICKER (HUE SLIDER ARC-EN-CIEL)
 local function createColorPicker(page, text)
 	local container = Instance.new("Frame", page)
 	container.Size = UDim2.new(1, -20, 0, 65); container.BackgroundColor3 = Color3.fromRGB(22, 22, 26)
@@ -440,12 +445,10 @@ local function createColorPicker(page, text)
 	local function updateColor(input)
 		local relativeX = math.clamp((input.Position.X - hueBar.AbsolutePosition.X) / hueBar.AbsoluteSize.X, 0, 1)
 		cursor.Position = UDim2.new(relativeX, -2, 0, -3)
-		
-		-- Met à jour la couleur du thème global
 		local newColor = Color3.fromHSV(relativeX, 1, 1)
+		
 		accentColor = newColor
 		mainStroke.Color = newColor
-		
 		for _, item in ipairs(themeObjects) do
 			if item.isCheckbox and item.state then item.obj.BackgroundColor3 = newColor
 			elseif item.isSlider then item.obj.BackgroundColor3 = newColor
@@ -458,7 +461,7 @@ local function createColorPicker(page, text)
 	UIS.InputChanged:Connect(function(input) if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then updateColor(input) end end)
 end
 
--- Système de Drag Flottant
+-- Drag Flottant
 local draggingUI, dragStartUI, startPosUI
 sidebar.InputBegan:Connect(function(input)
 	if input.UserInputType == Enum.UserInputType.MouseButton1 then draggingUI = true; dragStartUI = input.Position; startPosUI = mainFrame.Position end
@@ -471,12 +474,10 @@ UIS.InputChanged:Connect(function(input)
 end)
 UIS.InputEnded:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 then draggingUI = false end end)
 
-
 -- ==========================================
 -- 4. REMPLISSAGE DES PAGES
 -- ==========================================
 
--- --- PAGE COMBAT ---
 createSection(pageCombat, "Système Auto Farm")
 createCycle(pageCombat, "Cible (Mob)", MobNames, selectedMob, function(v) selectedMob = v end)
 createCheckbox(pageCombat, "Auto Farm Mobs", false, function(v) autoFarmMob = v; if v then autoFarmBoss, killauraEnabled = false, false; teleportToIsland(MobDatabase[selectedMob]); task.wait(2); startCombatLoop() end end)
@@ -489,21 +490,15 @@ createCheckbox(pageCombat, "KillAura", false, function(v) killauraEnabled = v; i
 createCheckbox(pageCombat, "Cibler les Joueurs", false, function(v) targetPlayers = v; currentTarget = nil end)
 createSlider(pageCombat, "Portée (Studs)", 10, 2000, 500, function(v) combatRadius = v end)
 
-
--- --- PAGE LOCAL ---
 createSection(pageLocal, "Exploits Mouvement")
 createCheckbox(pageLocal, "NoClip", false, function(v) noClipEnabled = v; if v then enableNoClip() else disableNoClip() end end)
 createCheckbox(pageLocal, "Fly Mode", false, function(v) flyEnabled = v; if v then enableFly() else disableFly() end end)
 createSlider(pageLocal, "Vitesse de Vol", 10, 200, 50, function(v) FLY_SPEED = v end)
 
-
--- --- PAGE TELEPORT ---
 createSection(pageTeleport, "Voyage Rapide")
 createCycle(pageTeleport, "Destination", IslandNames, selectedIsland, function(v) selectedIsland = v end)
 createButton(pageTeleport, "Se Téléporter", function() teleportToIsland(selectedIsland) end)
 
-
--- --- PAGE CONFIGS ---
 createSection(pageConfigs, "Raccourcis & Transparence")
 local keybindBtn = Instance.new("TextButton", pageConfigs)
 keybindBtn.Size = UDim2.new(1, -20, 0, 45); keybindBtn.BackgroundColor3 = Color3.fromRGB(22, 22, 26)
@@ -524,16 +519,13 @@ end)
 createSlider(pageConfigs, "Opacité du Menu", 10, 100, 90, function(v) mainFrame.BackgroundTransparency = 1 - (v/100) end)
 
 createSection(pageConfigs, "Couleur du Thème")
-createColorPicker(pageConfigs, "Sélecteur de Couleur RGB")
+createColorPicker(pageConfigs, "Sélecteur RGB (Arc-en-ciel)")
 
-
--- Initialisation
 createTab("Combat")
 createTab("Local")
 createTab("Teleport")
 createTab("Configs")
 
--- Clic sur le premier onglet pour lancer
 for _, child in ipairs(sidebar:GetChildren()) do
 	if child:IsA("TextButton") and child.Text == "  Combat" then
 		child.BackgroundTransparency = 0.85
@@ -542,4 +534,4 @@ for _, child in ipairs(sidebar:GetChildren()) do
 end
 pages.Combat.Visible = true
 
-print("Menu Elite Pro Injecté. Logo & ColorPicker activés.")
+print("Menu Elite Pro Injecté. Logo custom et Color Picker fonctionnels.")
