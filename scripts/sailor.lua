@@ -1,6 +1,6 @@
 -- ======================================================
--- 👑 MxF HUB - SPEED HUB X EDITION (FINAL V9)
--- Safe NPC Tween, Auto Farm Island Fix, Anti-Cheat Bypass
+-- 👑 MxF HUB - SPEED HUB X EDITION (FINAL V9 - BYPASS)
+-- Anti-Cheat Bypass (Safe Tween), Smart Portal Farm
 -- ======================================================
 
 local Players = game:GetService("Players")
@@ -39,7 +39,6 @@ local BossDatabase = {
 	["ThiefBoss"] = "Starter"
 }
 
--- Mapping complet des NPCs
 local NpcIslandMap = {
 	["DungeonMerchantNPC"] = "Dungeon", ["DungeonPortalsNPC"] = "Dungeon", ["ShadowMonarchBuyerNPC"] = "Dungeon", ["CidBuyer"] = "Dungeon",
 	["SummonBossNPC"] = "Boss", ["ExchangeNPC"] = "Boss", ["MoonSlayerBuff"] = "Boss", ["GilgameshBuyerNPC"] = "Boss", ["SaberAlterBuyerNPC"] = "Boss", ["GrailCraftNPC"] = "Boss", ["BabylonCraftNPC"] = "Boss", ["SaberAlterMasteryNPC"] = "Boss", ["QinShiBuyer"] = "Boss", ["MoonSlayerSeller"] = "Boss", ["BlessedMaidenBuyerNPC"] = "Boss", ["BlessedMaidenMasteryNPC"] = "Boss",
@@ -75,7 +74,7 @@ table.sort(MobNames); table.sort(BossNames); table.sort(IslandNames); table.sort
 local selectedMob, selectedBoss, selectedIsland, selectedNPC = MobNames[1], BossNames[1], IslandNames[1], NpcNames[1]
 local autoFarmMob, autoFarmBoss, autoFarmTower, killauraEnabled = false, false, false, false
 
-local isOnRightIsland = false 
+local currentFarmIsland = "" -- Force le TP Portail
 local selectedSkill = "All"
 local autoSkillEnabled = false
 local targetPlayers = false
@@ -95,36 +94,46 @@ local function teleportToIsland(islandName)
 	pcall(function() ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("TeleportToPortal"):FireServer(islandName) end)
 end
 
--- ✅ CORRECTION TP NPC : Vol au lieu de TP Brutal
+-- ✅ BYPASS ANTI-CHEAT NPC TP (NoClip Temporaire + Vitesse Safe)
 local function teleportToSpecificNPC(npcName)
 	local targetIsland = NpcIslandMap[npcName] or "Starter"
 	
-	-- 1. TP au portail
+	-- 1. TP Strict au Portail
 	teleportToIsland(targetIsland)
-	task.wait(3.5) -- Attente du chargement de l'île
+	task.wait(3.5) -- Laisse la zone charger à 100%
 	
-	-- 2. Recherche du PNJ
 	local npc = workspace:FindFirstChild("ServiceNPCs") and workspace.ServiceNPCs:FindFirstChild(npcName)
 	local char = player.Character
 	local root = char and char:FindFirstChild("HumanoidRootPart")
 	local hum = char and char:FindFirstChild("Humanoid")
 	
 	if npc and npc:FindFirstChild("HumanoidRootPart") and root and hum then
-		-- 3. Vol propre (Tween) vers le PNJ pour bypass l'anti-cheat
 		hum.PlatformStand = true
+		
+		-- Injection d'un NoClip fantôme pour ne pas cogner les murs (Bypass)
+		local safeFlight = RunService.Stepped:Connect(function()
+			for _, p in ipairs(char:GetDescendants()) do
+				if p:IsA("BasePart") then p.CanCollide = false end
+			end
+			root.Velocity = Vector3.zero -- Retire la gravité
+		end)
+		
 		local targetCFrame = npc.HumanoidRootPart.CFrame * CFrame.new(0, 0, -4)
 		local dist = (root.Position - targetCFrame.Position).Magnitude
 		
-		-- Vitesse adaptative utilisant ton paramètre de Tween Speed
-		local glideTime = math.clamp(dist / tweenSpeed, 0.1, 8) 
+		-- Vitesse Safe maximale fixée à 200 studs/s pour esquiver l'anti-cheat
+		local safeSpeed = 200 
+		local glideTime = math.clamp(dist / safeSpeed, 0.1, 15)
 		
 		local tween = TweenService:Create(root, TweenInfo.new(glideTime, Enum.EasingStyle.Linear), {CFrame = targetCFrame})
 		tween:Play()
 		tween.Completed:Wait()
 		
+		-- On nettoie après le vol
+		safeFlight:Disconnect()
 		hum.PlatformStand = false
 	else
-		print("Erreur : Le NPC " .. npcName .. " n'a pas pu charger à temps.")
+		print("Erreur : Le NPC n'est pas chargé sur l'île.")
 	end
 end
 
@@ -142,7 +151,6 @@ local function getTarget(targetName, isSpecific)
 				if targetName == "NearestTower" then
 					match = true 
 				elseif isSpecific then
-					-- Ciblage STRICT
 					if string.sub(obj.Name, 1, #targetName) == targetName then
 						if targetName == "Thief" and string.find(obj.Name, "Boss") then match = false end
 					else
@@ -179,38 +187,36 @@ local function startCombatLoop()
 					hum.PlatformStand = true
 					
 					local tName = autoFarmTower and "NearestTower" or (autoFarmMob and selectedMob or selectedBoss)
-					local island = autoFarmTower and "" or (autoFarmMob and MobDatabase[selectedMob] or BossDatabase[selectedBoss])
+					local targetIsland = autoFarmTower and "Tower" or (autoFarmMob and MobDatabase[selectedMob] or BossDatabase[selectedBoss])
+					
+					-- ✅ CORRECTION AUTO-FARM : Force le passage par le portail si on a changé de cible
+					if currentFarmIsland ~= targetIsland and not autoFarmTower then
+						teleportToIsland(targetIsland)
+						task.wait(3.5)
+						currentFarmIsland = targetIsland
+						continue -- Recommence la boucle après TP
+					end
+					
 					local target, dist = getTarget(tName, true)
 					currentTarget = target
 					
 					if target and target:FindFirstChild("HumanoidRootPart") then
-						isOnRightIsland = true 
-						
 						local tpPos = target.HumanoidRootPart.Position + Vector3.new(0, mobHeight, 0)
 						local targetCFrame = CFrame.new(tpPos) * CFrame.Angles(math.rad(-90), 0, 0)
 
 						if dist > 15 then
-							local tTime = math.clamp(dist / tweenSpeed, 0.05, 3)
-							TweenService:Create(root, TweenInfo.new(tTime, Enum.EasingStyle.Linear), {CFrame = targetCFrame}):Play()
+							local glideTime = math.clamp(dist / tweenSpeed, 0.05, 3)
+							local tween = TweenService:Create(root, TweenInfo.new(glideTime, Enum.EasingStyle.Linear), {CFrame = targetCFrame})
+							tween:Play()
+							root.Velocity = Vector3.zero
 						else
 							root.Velocity, root.RotVelocity = Vector3.zero, Vector3.zero
 							root.CFrame = targetCFrame
 							pcall(function() remote:FireServer() end)
 						end
 					else 
-						-- ✅ CORRECTION AUTO-FARM TP : Si le mob n'est pas là, il réévalue son besoin de TP
-						if not autoFarmTower then
-							if not isOnRightIsland then
-								teleportToIsland(island)
-								task.wait(4) -- On laisse bien la zone charger
-								isOnRightIsland = true
-							else
-								-- On flotte en attendant le respawn
-								root.Velocity, root.RotVelocity = Vector3.zero, Vector3.zero
-							end
-						else
-							root.Velocity, root.RotVelocity = Vector3.zero, Vector3.zero
-						end
+						-- Le mob n'est pas là, mais on est sur la bonne île : On Flotte et on attend le respawn
+						root.Velocity, root.RotVelocity = Vector3.zero, Vector3.zero
 					end
 				elseif killauraEnabled then
 					if not flyEnabled then hum.PlatformStand = false end
@@ -310,7 +316,7 @@ player.CharacterAdded:Connect(function()
 end)
 
 -- ==========================================
--- 3. MOTEUR UI (SPEED HUB X REPRODUCTION PROPRE)
+-- 3. MOTEUR UI (SPEED HUB X)
 -- ==========================================
 local screenGui = Instance.new("ScreenGui", targetGui)
 screenGui.Name = "MxFHubPremium"
@@ -611,29 +617,11 @@ local pgConfig = CreateTab("Configs", iconConfig)
 
 -- --- PAGE FARM ---
 CreateTitle(pgFarm, "Combat Target")
-CreateDropdown(pgFarm, "Select Monster", MobNames, selectedMob, function(v) 
-	selectedMob = v; isOnRightIsland = false 
-end)
-CreateToggle(pgFarm, "Auto Farm Monster", false, function(v) 
-	autoFarmMob = v; 
-	if v then 
-		autoFarmBoss, autoFarmTower, killauraEnabled = false, false, false
-		isOnRightIsland = false 
-		startCombatLoop() 
-	end 
-end)
+CreateDropdown(pgFarm, "Select Monster", MobNames, selectedMob, function(v) selectedMob = v; currentFarmIsland = "" end)
+CreateToggle(pgFarm, "Auto Farm Monster", false, function(v) autoFarmMob = v; if v then autoFarmBoss, autoFarmTower, killauraEnabled = false, false, false; startCombatLoop() end end)
 
-CreateDropdown(pgFarm, "Select Boss", BossNames, selectedBoss, function(v) 
-	selectedBoss = v; isOnRightIsland = false 
-end)
-CreateToggle(pgFarm, "Auto Farm Boss", false, function(v) 
-	autoFarmBoss = v; 
-	if v then 
-		autoFarmMob, autoFarmTower, killauraEnabled = false, false, false
-		isOnRightIsland = false
-		startCombatLoop() 
-	end 
-end)
+CreateDropdown(pgFarm, "Select Boss", BossNames, selectedBoss, function(v) selectedBoss = v; currentFarmIsland = "" end)
+CreateToggle(pgFarm, "Auto Farm Boss", false, function(v) autoFarmBoss = v; if v then autoFarmMob, autoFarmTower, killauraEnabled = false, false, false; startCombatLoop() end end)
 
 CreateToggle(pgFarm, "Auto Farm Nearest (Tower)", false, function(v) autoFarmTower = v; if v then autoFarmMob, autoFarmBoss, killauraEnabled = false, false, false; startCombatLoop() end end)
 
