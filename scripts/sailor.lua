@@ -1,6 +1,6 @@
 -- ======================================================
--- 👑 MxF HUB - SPEED HUB X EDITION (FINAL V19)
--- Zero Jitter Farm, Auto Summon Boss, Clean UI
+-- 👑 MxF HUB - SPEED HUB X EDITION (FINAL V21)
+-- AutoFarm Reverted (Stable), Auto Chest "All" Option
 -- ======================================================
 
 local Players = game:GetService("Players")
@@ -71,6 +71,13 @@ local ExtraIslands = {"Dungeon", "Boss", "Sailor", "Tower", "DesertIsland", "Sno
 for _, island in ipairs(ExtraIslands) do if not table.find(IslandNames, island) then table.insert(IslandNames, island) end end
 
 table.sort(MobNames); table.sort(BossNames); table.sort(IslandNames); table.sort(NpcNames)
+
+-- Variables Auto Chest (Mise à jour avec "All")
+local chestTypesList = {"All", "Common Chest", "Rare Chest", "Epic Chest", "Legendary Chest", "Mythical Chest"}
+local selectedChestType = chestTypesList[1]
+local chestAmountToOpen = 1
+local autoChestEnabled = false
+local autoChestCoroutine = nil
 
 -- Shop Variables
 local shopItemsList = {"Dungeon Key", "Boss Key", "Haki Color Reroll", "Race Reroll", "Rush Key", "Passive Shard", "Trait Reroll", "Clan Reroll"}
@@ -205,7 +212,7 @@ local function getTarget(targetName, isSpecific)
 	return closest, minDist
 end
 
--- ✅ COMBAT SYSTEM (ANTI-JITTER PERFECT HOLD)
+-- ✅ COMBAT SYSTEM (REVERTED TO STABLE V18 / V16 VERSION - NO ANCHOR)
 local function startCombatLoop()
 	if combatCoroutine then task.cancel(combatCoroutine) end
 	combatCoroutine = task.spawn(function()
@@ -217,15 +224,11 @@ local function startCombatLoop()
 				local root = char.HumanoidRootPart
 				local hum = char.Humanoid
 				
-				-- Création de l'Anti-Tremblote (BodyVelocity invisible)
-				local farmHold = root:FindFirstChild("FarmHold")
-				if not farmHold then
-					farmHold = Instance.new("BodyVelocity")
-					farmHold.Name = "FarmHold"
-					farmHold.Velocity = Vector3.zero
-					farmHold.MaxForce = Vector3.new(0, 0, 0)
-					farmHold.Parent = root
-				end
+				pcall(function()
+					for _, tool in ipairs(player.Backpack:GetChildren()) do
+						if tool:IsA("Tool") then hum:EquipTool(tool) end
+					end
+				end)
 				
 				if autoFarmMob or autoFarmBoss or autoFarmTower then
 					hum.PlatformStand = true
@@ -234,7 +237,6 @@ local function startCombatLoop()
 					local island = autoFarmTower and "" or (autoFarmMob and MobDatabase[selectedMob] or BossDatabase[selectedBoss])
 					
 					if currentFarmIsland ~= island and not autoFarmTower then
-						farmHold.MaxForce = Vector3.new(0, 0, 0) -- Coupe l'anti-gravité le temps de TP
 						teleportToIsland(island)
 						task.wait(3.5)
 						currentFarmIsland = island
@@ -251,20 +253,17 @@ local function startCombatLoop()
 						local targetCFrame = CFrame.new(tpPos) * CFrame.Angles(math.rad(-90), 0, 0)
 
 						if dist > 15 then
-							farmHold.MaxForce = Vector3.new(0, 0, 0)
 							local tTime = math.clamp(dist / tweenSpeed, 0.05, 3)
 							TweenService:Create(root, TweenInfo.new(tTime, Enum.EasingStyle.Linear), {CFrame = targetCFrame}):Play()
+							root.Velocity = Vector3.zero
 						else
-							-- Active l'Anti-Tremblote (Gèle parfaitement le perso en l'air)
-							farmHold.MaxForce = Vector3.new(1e5, 1e5, 1e5)
+							root.Velocity, root.RotVelocity = Vector3.zero, Vector3.zero
 							root.CFrame = targetCFrame
 							pcall(function() hitRemote:FireServer() end)
 						end
 					else 
-						farmHold.MaxForce = Vector3.new(1e5, 1e5, 1e5)
 						if not autoFarmTower then
 							if not isOnRightIsland then
-								farmHold.MaxForce = Vector3.new(0, 0, 0)
 								teleportToIsland(island)
 								task.wait(3.5)
 								isOnRightIsland = true
@@ -276,7 +275,6 @@ local function startCombatLoop()
 						end
 					end
 				elseif killauraEnabled then
-					farmHold.MaxForce = Vector3.new(0, 0, 0)
 					if not flyEnabled then hum.PlatformStand = false end
 					
 					local tName = auraTargetsFarmMob and selectedMob or nil
@@ -292,14 +290,8 @@ local function startCombatLoop()
 			end
 			task.wait(combatCooldown)
 		end
-		
-		-- Nettoyage si on désactive
-		if player.Character then
-			local farmHold = player.Character:FindFirstChild("HumanoidRootPart") and player.Character.HumanoidRootPart:FindFirstChild("FarmHold")
-			if farmHold then farmHold:Destroy() end
-			if not flyEnabled and player.Character:FindFirstChild("Humanoid") then
-				player.Character.Humanoid.PlatformStand = false
-			end
+		if player.Character and not flyEnabled and player.Character:FindFirstChild("Humanoid") then 
+			player.Character.Humanoid.PlatformStand = false 
 		end
 	end)
 end
@@ -328,6 +320,31 @@ task.spawn(function()
 		end
 	end
 end)
+
+-- ✅ AUTO CHEST LOOP (Mise à jour avec "All")
+local function startAutoChestLoop()
+	if autoChestCoroutine then task.cancel(autoChestCoroutine) end
+	autoChestCoroutine = task.spawn(function()
+		local remote = game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("UseItem")
+		local allChests = {"Common Chest", "Rare Chest", "Epic Chest", "Legendary Chest", "Mythical Chest"}
+		
+		while autoChestEnabled do
+			pcall(function()
+				if selectedChestType == "All" then
+					for _, chest in ipairs(allChests) do
+						local args = { "Use", chest, tonumber(chestAmountToOpen) or 1, false }
+						remote:FireServer(unpack(args))
+						task.wait(0.1) -- Petit délai pour ne pas spam le serveur
+					end
+				else
+					local args = { "Use", selectedChestType, tonumber(chestAmountToOpen) or 1, false }
+					remote:FireServer(unpack(args))
+				end
+			end)
+			task.wait(1)
+		end
+	end)
+end
 
 -- AUTO STATS LOOP
 local function startAutoStatsLoop()
@@ -805,6 +822,11 @@ CreateButton(secSummon, "Summon Boss", function()
 		end
 	end)
 end)
+
+local secAutoChest = CreateSection(pgAuto, "Auto Chest", true)
+CreateDropdown(secAutoChest, "Select Chest", chestTypesList, selectedChestType, function(v) selectedChestType = v end)
+CreateInput(secAutoChest, "Amount to Open", "Quantity", chestAmountToOpen, function(v) chestAmountToOpen = tonumber(v) or 1 end)
+CreateToggle(secAutoChest, "Auto Open Chests", false, function(v) autoChestEnabled = v; if v then startAutoChestLoop() end end)
 
 local secAutoStatsMaster = CreateSection(pgAuto, "Auto Stats (Controls)", false)
 CreateToggle(secAutoStatsMaster, "Enable Auto Stats (Loop)", false, function(v) autoStatsEnabled = v; if v then startAutoStatsLoop() end end)
