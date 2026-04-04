@@ -1,6 +1,6 @@
 -- ======================================================
--- 👑 MxF HUB - SPEED HUB X EDITION (V3 - ULTIMATE)
--- Smart NPC TP, Sliders de Farm, Icônes fixées
+-- 👑 MxF HUB - SPEED HUB X EDITION (V4 - ULTIME)
+-- Icônes restaurées, Ciblage Strict, Vrai TP PNJ, UI Bold
 -- ======================================================
 
 local Players = game:GetService("Players")
@@ -57,7 +57,6 @@ local NpcNames = {
 	"TrueAizenBuyerNPC", "TrueAizenFUnlockNPC", "YamatoBuyerNPC", "YujiBuyerNPC"
 }
 
--- Mapping intelligent pour déduire l'île du NPC s'il n'est pas encore chargé
 local NpcIslandMap = {
 	["AizenMovesetNPC"] = "HollowIsland", ["AizenQuestlineBuff"] = "HollowIsland", ["TrueAizenBossSummonerNPC"] = "HollowIsland", 
 	["TrueAizenBuyerNPC"] = "HollowIsland", ["TrueAizenFUnlockNPC"] = "HollowIsland", ["HogyokuQuestNPC"] = "HollowIsland",
@@ -75,6 +74,7 @@ table.sort(MobNames); table.sort(BossNames); table.sort(IslandNames); table.sort
 
 local selectedMob, selectedBoss, selectedIsland, selectedNPC = MobNames[1], BossNames[1], IslandNames[1], NpcNames[1]
 local autoFarmMob, autoFarmBoss, killauraEnabled = false, false, false
+local targetPlayers = false
 local mobHeight, tweenSpeed, combatCooldown, combatRadius = 8, 150, 0.1, 500
 local combatCoroutine = nil
 
@@ -96,24 +96,22 @@ local function teleportToSpecificNPC(npcName)
 		local npc = workspace:FindFirstChild("ServiceNPCs") and workspace.ServiceNPCs:FindFirstChild(npcName)
 		if npc and npc:FindFirstChild("HumanoidRootPart") then
 			if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-				player.Character.HumanoidRootPart.CFrame = npc.HumanoidRootPart.CFrame + Vector3.new(0, 3, 0)
+				-- On TP le joueur exactement 4 studs devant le PNJ
+				player.Character.HumanoidRootPart.CFrame = npc.HumanoidRootPart.CFrame * CFrame.new(0, 0, -4)
 				return true
 			end
 		end
 		return false
 	end
 
-	-- 1. Essayer de TP directement s'il est déjà rendu
+	-- On essaye de TP tout de suite (si l'île est déjà chargée)
 	if tryTP() then return end
 
-	-- 2. Sinon, déduire l'île, TP dessus, attendre et réessayer
-	local guessedIsland = NpcIslandMap[npcName] or "Starter" -- Par défaut sur Starter si non répertorié
+	-- Sinon, on TP sur l'île, on attend le rendu du PNJ, et on se TP dessus
+	local guessedIsland = NpcIslandMap[npcName] or "Starter"
 	teleportToIsland(guessedIsland)
-	task.wait(2.5)
-	
-	if not tryTP() then
-		print("NPC non trouvé même après TP sur l'île estimée (" .. guessedIsland .. ").")
-	end
+	task.wait(2.5) -- Temps de chargement de la map
+	tryTP()
 end
 
 local function getTarget(targetName, isSpecific)
@@ -126,8 +124,15 @@ local function getTarget(targetName, isSpecific)
 	if npcs then
 		for _, obj in ipairs(npcs:GetDescendants()) do
 			if obj:IsA("Model") and not string.find(string.lower(obj.Name), "quest") then
-				local match = isSpecific and string.find(obj.Name, targetName) or true
-				if match and isSpecific and targetName == "Thief" and string.find(obj.Name, "Boss") then match = false end
+				local match = true
+				if isSpecific then
+					-- Recherche STRICTE : le nom doit commencer exactement par le nom sélectionné (ex: "Slime" matche "Slime1" mais pas "SuperSlime")
+					if string.sub(obj.Name, 1, #targetName) == targetName then
+						if targetName == "Thief" and string.find(obj.Name, "Boss") then match = false end
+					else
+						match = false
+					end
+				end
 				
 				if match then
 					local hum = obj:FindFirstChild("Humanoid")
@@ -141,6 +146,20 @@ local function getTarget(targetName, isSpecific)
 			end
 		end
 	end
+	
+	if targetPlayers and not isSpecific then
+		for _, p in ipairs(Players:GetPlayers()) do
+			if p ~= player and p.Character then
+				local hum = p.Character:FindFirstChild("Humanoid")
+				local root = p.Character:FindFirstChild("HumanoidRootPart")
+				if hum and hum.Health > 0 and root then
+					local dist = (root.Position - myPos).Magnitude
+					if dist <= combatRadius and dist < minDist then minDist = dist; closest = p.Character end
+				end
+			end
+		end
+	end
+	
 	return closest, minDist
 end
 
@@ -244,7 +263,7 @@ player.CharacterAdded:Connect(function()
 end)
 
 -- ==========================================
--- 3. MOTEUR UI "SPEED HUB X" (AGRANDI & PROPRE)
+-- 3. MOTEUR UI (SPEED HUB X REPRODUCTION PROPRE)
 -- ==========================================
 local screenGui = Instance.new("ScreenGui", targetGui)
 screenGui.Name = "MxFHubPremium"
@@ -253,7 +272,7 @@ local mainFrame = Instance.new("Frame", screenGui)
 mainFrame.Size = UIConfig.WindowSize
 mainFrame.Position = UDim2.new(0.5, -360, 0.5, -240)
 mainFrame.BackgroundColor3 = Color3.fromRGB(15, 16, 20)
-mainFrame.BackgroundTransparency = 0.15 -- Look Glassmorphism
+mainFrame.BackgroundTransparency = 0.15 
 mainFrame.BorderSizePixel = 0
 Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 10)
 local stroke = Instance.new("UIStroke", mainFrame)
@@ -267,7 +286,7 @@ sidebar.BackgroundTransparency = 0.4
 sidebar.BorderSizePixel = 0
 Instance.new("UICorner", sidebar).CornerRadius = UDim.new(0, 10)
 
--- Logo MxF via le lien fourni
+-- Logo MxF
 local logoImg = Instance.new("ImageLabel", sidebar)
 logoImg.Size = UDim2.new(0, 40, 0, 40); logoImg.Position = UDim2.new(0, 15, 0, 15)
 logoImg.BackgroundTransparency = 1; logoImg.ScaleType = Enum.ScaleType.Fit
@@ -278,7 +297,7 @@ pcall(function()
 		writefile("mxf_logo.png", data)
 		logoImg.Image = getcustomasset("mxf_logo.png")
 	else
-		logoImg.Image = "rbxassetid://10629237000" -- Secours si l'exécuteur ne supporte pas l'image
+		logoImg.Image = "rbxassetid://10629237000"
 	end
 end)
 
@@ -324,17 +343,19 @@ local function CreateTab(name, iconId)
 	btn.Size = UDim2.new(0.9, 0, 0, 40); btn.BackgroundColor3 = Color3.fromRGB(30, 31, 35); btn.BackgroundTransparency = 1; btn.Text = ""
 	Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 8)
 
+	-- Icônes restaurées et adaptées
 	local icon = Instance.new("ImageLabel", btn)
 	icon.Size = UDim2.new(0, 20, 0, 20); icon.Position = UDim2.new(0, 12, 0.5, -10); icon.Image = "rbxassetid://"..iconId; icon.BackgroundTransparency = 1; icon.ImageColor3 = Color3.fromRGB(200, 200, 200)
 
 	local lbl = Instance.new("TextLabel", btn)
 	lbl.Size = UDim2.new(1, -45, 1, 0); lbl.Position = UDim2.new(0, 40, 0, 0); lbl.BackgroundTransparency = 1; lbl.Text = name
-	lbl.TextColor3 = Color3.fromRGB(150, 150, 160); lbl.Font = Enum.Font.GothamMedium; lbl.TextSize = 15; lbl.TextXAlignment = Enum.TextXAlignment.Left
+	-- Écriture plus grosse et en gras (Bold)
+	lbl.TextColor3 = Color3.fromRGB(150, 150, 160); lbl.Font = Enum.Font.GothamBold; lbl.TextSize = 16; lbl.TextXAlignment = Enum.TextXAlignment.Left
 
 	local page = Instance.new("ScrollingFrame", container)
 	page.Size = UDim2.new(1, 0, 1, -55); page.Position = UDim2.new(0, 0, 0, 55); page.BackgroundTransparency = 1; page.ScrollBarThickness = 2; page.Visible = false
 	local pageLayout = Instance.new("UIListLayout", page); pageLayout.Padding = UDim.new(0, 10)
-	page.AutomaticCanvasSize = Enum.AutomaticSize.Y
+	pageLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function() page.CanvasSize = UDim2.new(0, 0, 0, pageLayout.AbsoluteContentSize.Y + 20) end)
 
 	Pages[name] = page
 
@@ -346,21 +367,6 @@ local function CreateTab(name, iconId)
 	end)
 
 	return page
-end
-
--- Sous-titres avec barre fine
-local function CreateTitle(page, text)
-	local frame = Instance.new("Frame", page)
-	frame.Size = UDim2.new(1, -10, 0, 35); frame.BackgroundTransparency = 1
-	
-	local lbl = Instance.new("TextLabel", frame)
-	lbl.Size = UDim2.new(1, 0, 1, -5); lbl.BackgroundTransparency = 1; lbl.Text = text
-	lbl.TextColor3 = Color3.fromRGB(255, 255, 255); lbl.Font = Enum.Font.GothamBold; lbl.TextSize = 16; lbl.TextXAlignment = Enum.TextXAlignment.Left
-	
-	local line = Instance.new("Frame", frame)
-	line.Size = UDim2.new(1, 0, 0, 1); line.Position = UDim2.new(0, 0, 1, -2); line.BackgroundColor3 = Color3.fromRGB(50, 50, 60); line.BorderSizePixel = 0
-	
-	return frame
 end
 
 -- Component Helpers
@@ -462,6 +468,7 @@ local function CreateDropdown(page, text, options, default, callback)
 		open = not open; icon.Text = open and "▲" or "▼"
 		local targetSize = open and (layout.AbsoluteContentSize.Y + 65) or 50
 		TweenService:Create(row, TweenInfo.new(0.2), {Size = UDim2.new(1, -10, 0, targetSize)}):Play()
+		task.delay(0.25, function() if currentTab then currentTab.page.CanvasSize = UDim2.new(0, 0, 0, currentTab.page:FindFirstChildOfClass("UIListLayout").AbsoluteContentSize.Y + 20) end end)
 	end)
 
 	for _, opt in ipairs(options) do
@@ -501,11 +508,11 @@ end)
 -- 4. CONSTRUCTION DU HUB
 -- ==========================================
 
--- Icones certifiées
-local iconFarm = "10629237000"
-local iconPlayer = "10629227546"
-local iconTeleport = "10629207572"
-local iconConfig = "10629225907"
+-- IDs Icones (Matérial Design)
+local iconFarm = "7733674079"
+local iconPlayer = "7733954760"
+local iconTeleport = "7733956484"
+local iconConfig = "7734068321"
 
 local pgFarm = CreateTab("Farm", iconFarm)
 local pgPlayer = CreateTab("Player", iconPlayer)
@@ -513,41 +520,33 @@ local pgTp = CreateTab("Teleport", iconTeleport)
 local pgConfig = CreateTab("Configs", iconConfig)
 
 -- --- PAGE FARM ---
-CreateTitle(pgFarm, "Combat Target")
 CreateDropdown(pgFarm, "Select Monster", MobNames, selectedMob, function(v) selectedMob = v end)
 CreateToggle(pgFarm, "Auto Farm Monster", false, function(v) autoFarmMob = v; if v then autoFarmBoss, killauraEnabled = false, false; startCombatLoop() end end)
 CreateDropdown(pgFarm, "Select Boss", BossNames, selectedBoss, function(v) selectedBoss = v end)
 CreateToggle(pgFarm, "Auto Farm Boss", false, function(v) autoFarmBoss = v; if v then autoFarmMob, killauraEnabled = false, false; startCombatLoop() end end)
 
-CreateTitle(pgFarm, "Settings & Speed")
 CreateSlider(pgFarm, "Tween Speed (Approche)", 50, 500, 150, function(v) tweenSpeed = v end)
 CreateSlider(pgFarm, "Distance From Target (Height)", 0, 30, 8, function(v) mobHeight = v end)
 
-CreateTitle(pgFarm, "Combat Assist")
 CreateToggle(pgFarm, "KillAura", false, function(v) killauraEnabled = v; if v then autoFarmMob, autoFarmBoss = false, false; startCombatLoop() end end)
+CreateSlider(pgFarm, "Attack Radius", 10, 1000, 500, function(v) combatRadius = v end)
 
 -- --- PAGE PLAYER ---
-CreateTitle(pgPlayer, "Local Player")
 CreateSlider(pgPlayer, "WalkSpeed", 16, 250, 50, function(v) walkSpeedValue = v; updateSpeed() end)
 CreateToggle(pgPlayer, "Enable WalkSpeed", false, function(v) walkSpeedEnabled = v; updateSpeed() end)
 CreateToggle(pgPlayer, "Infinite Jump", false, function(v) infJumpEnabled = v end)
-
-CreateTitle(pgPlayer, "Exploits")
 CreateSlider(pgPlayer, "Fly Speed", 10, 300, 50, function(v) flySpeedValue = v end)
 CreateToggle(pgPlayer, "Fly Mode", false, function(v) flyEnabled = v; toggleFly() end)
 CreateToggle(pgPlayer, "No Clip", false, function(v) noClipEnabled = v; if v then enableNoClip() else disableNoClip() end end)
 
 -- --- PAGE TELEPORT ---
-CreateTitle(pgTp, "World Travel (Islands)")
 CreateDropdown(pgTp, "Select Island", IslandNames, selectedIsland, function(v) selectedIsland = v end)
 CreateButton(pgTp, "Teleport to Island", function() teleportToIsland(selectedIsland) end)
 
-CreateTitle(pgTp, "NPC Teleport")
 CreateDropdown(pgTp, "Select NPC", NpcNames, selectedNPC, function(v) selectedNPC = v end)
 CreateButton(pgTp, "Teleport to NPC", function() teleportToSpecificNPC(selectedNPC) end)
 
 -- --- PAGE CONFIGS ---
-CreateTitle(pgConfig, "Menu Settings")
 CreateSlider(pgConfig, "Menu Opacity", 10, 100, 80, function(v) mainFrame.BackgroundTransparency = 1 - (v/100) end)
 CreateButton(pgConfig, "Unload Interface", function() if targetGui:FindFirstChild("MxFHubPremium") then targetGui.MxFHubPremium:Destroy() end end)
 
@@ -560,4 +559,4 @@ UIS.InputEnded:Connect(function(input) if input.UserInputType == Enum.UserInputT
 
 -- Init
 navList:GetChildren()[2].MouseButton1Click:Fire()
-print("MxF Hub Ultime Chargé !")
+print("MxF Hub SpeedX Edition Chargé !")
