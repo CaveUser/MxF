@@ -1,6 +1,6 @@
 -- ======================================================
--- 👑 MxF HUB - SPEED HUB X EDITION (FINAL V26 - ULTIMATE)
--- Perfect Theme Engine, UI Upgrades, All (No V) Skills
+-- 👑 MxF HUB - SPEED HUB X EDITION (FINAL V27 - ULTIMATE)
+-- Fixed Search Bar, Fixed Player TP, Long Range Aura
 -- ======================================================
 
 local Players = game:GetService("Players")
@@ -142,7 +142,7 @@ local infJumpEnabled, noClipEnabled = false, false
 local bodyVelocity, bodyGyro, speedConn, flyConn, noClipConn
 local isBindingAny = false
 
-local tabButtons = {} -- Pour forcer le chargement de la page Home
+local tabButtons = {} 
 
 -- ==========================================
 -- 2. BACK-END LOGIC
@@ -151,12 +151,11 @@ local function teleportToIsland(islandName)
 	pcall(function() ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("TeleportToPortal"):FireServer(islandName) end)
 end
 
--- ✅ NOUVEAU TP PNJ (Vol fluide à 110 Studs/sec + Délai 0.5s)
+-- ✅ TP PNJ (Vol fluide à 110 Studs/sec + Délai 0.5s)
 local function teleportToSpecificNPC(npcName)
 	local targetIsland = NpcIslandMap[npcName] or "Starter"
-	
 	teleportToIsland(targetIsland)
-	task.wait(0.5) -- Attente exacte demandée de 0.5s après le TP Île
+	task.wait(0.5) 
 	
 	pcall(function()
 		local npc = workspace:FindFirstChild("ServiceNPCs") and workspace.ServiceNPCs:FindFirstChild(npcName)
@@ -167,8 +166,7 @@ local function teleportToSpecificNPC(npcName)
 		if npc and npc:FindFirstChild("HumanoidRootPart") and root and hum then
 			local targetCFrame = npc.HumanoidRootPart.CFrame * CFrame.new(0, 0, -4)
 			local dist = (root.Position - targetCFrame.Position).Magnitude
-			
-			local flyTime = dist / 110 -- Vitesse stricte de 110 studs par seconde
+			local flyTime = dist / 110 
 			
 			hum.PlatformStand = true
 			local tween = TweenService:Create(root, TweenInfo.new(flyTime, Enum.EasingStyle.Linear), {CFrame = targetCFrame})
@@ -211,23 +209,10 @@ local function getTarget(targetName, isSpecific)
 		end
 	end
 	
-	if targetPlayers and targetName ~= "NearestTower" then
-		for _, p in ipairs(Players:GetPlayers()) do
-			if p ~= player and p.Character then
-				local hum = p.Character:FindFirstChild("Humanoid")
-				local root = p.Character:FindFirstChild("HumanoidRootPart")
-				if hum and hum.Health > 0 and root then
-					local dist = (root.Position - myPos).Magnitude
-					if dist <= combatRadius and dist < minDist then minDist = dist; closest = p.Character end
-				end
-			end
-		end
-	end
-	
 	return closest, minDist
 end
 
--- COMBAT SYSTEM (V21 STABLE)
+-- ✅ COMBAT SYSTEM ET KILLAURA LONG RANGE FIX
 local function startCombatLoop()
 	if combatCoroutine then task.cancel(combatCoroutine) end
 	combatCoroutine = task.spawn(function()
@@ -276,16 +261,46 @@ local function startCombatLoop()
 							if not isOnRightIsland then teleportToIsland(island); task.wait(3.5); isOnRightIsland = true end
 						end
 					end
+					
+				-- ✅ NOUVEAU KILLAURA LONG RANGE (Détache la Hitbox sur le mob)
 				elseif killauraEnabled then
 					float.MaxForce = Vector3.new(0, 0, 0)
 					if not flyEnabled then hum.PlatformStand = false end
-					local tName = auraTargetsFarmMob and selectedMob or nil
-					local target, dist = getTarget(tName, auraTargetsFarmMob)
+					
+					-- Utilise le mob sélectionné dans AutoFarm (Target specific)
+					local target, dist = getTarget(selectedMob, true)
 					currentTarget = target
+					
 					if target and target:FindFirstChild("HumanoidRootPart") then
-						local targetPos = target.HumanoidRootPart.Position
-						root.CFrame = CFrame.lookAt(root.Position, Vector3.new(targetPos.X, root.Position.Y, targetPos.Z))
+						local targetRoot = target.HumanoidRootPart
+						
+						-- Tourne le personnage vers le mob pour que l'attaque parte dans sa direction
+						root.CFrame = CFrame.lookAt(root.Position, Vector3.new(targetRoot.Position.X, root.Position.Y, targetRoot.Position.Z))
+						
+						-- Auto Equip Tool si pas fait
+						local currentTool = char:FindFirstChildOfClass("Tool")
+						if not currentTool then
+							local tool = player.Backpack:FindFirstChildOfClass("Tool")
+							if tool then hum:EquipTool(tool) end
+							currentTool = tool
+						end
+
+						-- Extender / Teleport Hitbox
+						if currentTool then
+							for _, part in ipairs(currentTool:GetDescendants()) do
+								if part:IsA("BasePart") and (part.Name == "Hitbox" or part.Name == "Handle" or part.Name == "Blade") then
+									part.Massless = true
+									part.CanCollide = false
+									part.Size = Vector3.new(combatRadius, combatRadius, combatRadius)
+									part.CFrame = targetRoot.CFrame
+								end
+							end
+						end
+						
 						pcall(function() hitRemote:FireServer() end)
+						VIM:SendMouseButtonEvent(0, 0, 0, true, game, 0)
+						task.wait(0.02)
+						VIM:SendMouseButtonEvent(0, 0, 0, false, game, 0)
 					end
 				end
 			end
@@ -497,7 +512,6 @@ activeTabName.Size = UDim2.new(1, 0, 0, 45); activeTabName.BackgroundTransparenc
 activeTabName:SetAttribute("TextRole", "Text"); activeTabName:SetAttribute("BaseTextSize", 26)
 activeTabName.TextXAlignment = Enum.TextXAlignment.Left
 
--- ✅ COPYRIGHT WATERMARK
 local versionLbl = Instance.new("TextLabel", mainFrame)
 versionLbl.Size = UDim2.new(0, 300, 0, 20); versionLbl.Position = UDim2.new(1, -15, 1, -10)
 versionLbl.AnchorPoint = Vector2.new(1, 1); versionLbl.BackgroundTransparency = 1
@@ -505,7 +519,6 @@ versionLbl.Text = "V.1.0.0 | © MxFlow created by MxF Studio, All rights reserve
 versionLbl.TextXAlignment = Enum.TextXAlignment.Right
 versionLbl:SetAttribute("TextRole", "TextDim"); versionLbl:SetAttribute("BaseTextSize", 11)
 
--- ✅ THEME ENGINE SÉCURISÉ & RÉPARÉ
 local function ApplyTheme()
 	pcall(function()
 		local t = Themes[CurrentSettings.Theme] or Themes["Default"]
@@ -517,14 +530,12 @@ local function ApplyTheme()
 		sidebar.BackgroundTransparency = 1 - opacity
 
 		for _, obj in ipairs(screenGui:GetDescendants()) do
-			-- Fonts & Text Size
 			if obj:IsA("TextLabel") or obj:IsA("TextButton") or obj:IsA("TextBox") then
 				obj.Font = f
 				local bSize = obj:GetAttribute("BaseTextSize")
 				if bSize then obj.TextSize = tonumber(bSize) + offset end
 			end
 
-			-- Text Color
 			if obj:IsA("GuiObject") then
 				local txtRole = obj:GetAttribute("TextRole")
 				if txtRole == "Text" then obj.TextColor3 = t.Text
@@ -532,7 +543,6 @@ local function ApplyTheme()
 				elseif txtRole == "Accent" then obj.TextColor3 = t.Accent end
 			end
 
-			-- Background Color
 			if obj:IsA("GuiObject") then
 				local bgRole = obj:GetAttribute("BgRole")
 				if bgRole == "Main" then obj.BackgroundColor3 = t.Main
@@ -546,7 +556,6 @@ local function ApplyTheme()
 				end
 			end
 
-			-- Stroke Color
 			if obj:IsA("UIStroke") then
 				if obj:GetAttribute("StrokeRole") == "Stroke" then obj.Color = t.Stroke end
 			end
@@ -600,6 +609,7 @@ local function CreateSection(page, text, defaultOpen)
 	local section = Instance.new("Frame", page)
 	section.Size = UDim2.new(1, -10, 0, 45); section.ClipsDescendants = true
 	section:SetAttribute("BgRole", "Elem")
+	section:SetAttribute("IsSection", true)
 	Instance.new("UICorner", section).CornerRadius = UDim.new(0, 10)
 	local sStroke = Instance.new("UIStroke", section); sStroke:SetAttribute("StrokeRole", "Stroke")
 	
@@ -617,6 +627,7 @@ local function CreateSection(page, text, defaultOpen)
 	icon:SetAttribute("TextRole", "TextDim"); icon:SetAttribute("BaseTextSize", 14)
 	
 	local content = Instance.new("Frame", section)
+	content.Name = "ContentFrame"
 	content.Size = UDim2.new(1, 0, 0, 0); content.Position = UDim2.new(0, 0, 0, 45); content.BackgroundTransparency = 1
 	local layout = Instance.new("UIListLayout", content); layout.Padding = UDim.new(0, 5); layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 	
@@ -669,7 +680,9 @@ local function CreateParagraph(page, text)
 end
 
 local function CreateRow(page, height)
-	local row = Instance.new("Frame", page); row.Size = UDim2.new(1, -10, 0, height or 45); row.BackgroundTransparency = 1; return row
+	local row = Instance.new("Frame", page); row.Size = UDim2.new(1, -10, 0, height or 45); row.BackgroundTransparency = 1
+	row:SetAttribute("IsRow", true)
+	return row
 end
 
 local function CreateInput(page, text, placeholder, default, callback)
@@ -780,6 +793,7 @@ local function CreateKeybind(page, text, defaultKey, callback)
 	end)
 end
 
+-- ✅ DROPDOWN FIX (Boutons listés s'adaptent au thème)
 local function CreateDropdown(page, text, options, default, callback)
 	local current = default or options[1]
 	local row = CreateRow(page, 45); row.ClipsDescendants = true
@@ -794,7 +808,7 @@ local function CreateDropdown(page, text, options, default, callback)
 	local str = Instance.new("UIStroke", btn); str:SetAttribute("StrokeRole", "Stroke")
 
 	local valTxt = Instance.new("TextLabel", btn)
-	valTxt.Size = UDim2.new(1, -30, 1, 0); valTxt.Position = UDim2.new(0, 10, 0, 0); valTxt.BackgroundTransparency = 1; valTxt.Text = tostring(current); valTxt.TextXAlignment = Enum.TextXAlignment.Left
+	valTxt.Size = UDim2.new(1, -30, 1, 0); valTxt.Position = UDim2.new(0, 10, 0, 0); valTxt.BackgroundTransparency = 1; valTxt.TextXAlignment = Enum.TextXAlignment.Left
 	valTxt:SetAttribute("TextRole", "Text"); valTxt:SetAttribute("BaseTextSize", 13)
 
 	local icon = Instance.new("TextLabel", btn)
@@ -806,22 +820,46 @@ local function CreateDropdown(page, text, options, default, callback)
 	local layout = Instance.new("UIListLayout", list); layout.Padding = UDim.new(0, 5)
 
 	local open = false
-	btn.MouseButton1Click:Connect(function()
-		open = not open; icon.Text = open and "▲" or "▼"
+	local function updateSize()
 		local targetSize = open and (layout.AbsoluteContentSize.Y + 60) or 45
 		TweenService:Create(row, TweenInfo.new(0.2), {Size = UDim2.new(1, -10, 0, targetSize)}):Play()
+	end
+
+	btn.MouseButton1Click:Connect(function()
+		open = not open; icon.Text = open and "▲" or "▼"
+		updateSize()
 	end)
 
-	for _, opt in ipairs(options) do
-		local oBtn = Instance.new("TextButton", list); oBtn.Size = UDim2.new(1, 0, 0, 28); oBtn.Text = "  " .. opt; oBtn.TextXAlignment = Enum.TextXAlignment.Left
-		oBtn:SetAttribute("BgRole", "Main"); Instance.new("UICorner", oBtn).CornerRadius = UDim.new(0, 6)
-		oBtn:SetAttribute("TextRole", "Text"); oBtn:SetAttribute("BaseTextSize", 13)
-		oBtn.MouseButton1Click:Connect(function()
-			current = opt; valTxt.Text = opt; open = false; icon.Text = "▼"
-			TweenService:Create(row, TweenInfo.new(0.2), {Size = UDim2.new(1, -10, 0, 45)}):Play()
-			if callback then callback(opt) end
-		end)
+	local DropdownAPI = {}
+	function DropdownAPI:Refresh(newOptions)
+		for _, child in ipairs(list:GetChildren()) do
+			if child:IsA("TextButton") then child:Destroy() end
+		end
+		
+		current = newOptions[1] or ""
+		valTxt.Text = tostring(current)
+		if callback then callback(current) end
+
+		for _, opt in ipairs(newOptions) do
+			local oBtn = Instance.new("TextButton", list); oBtn.Size = UDim2.new(1, 0, 0, 28); oBtn.Text = "  " .. opt; oBtn.TextXAlignment = Enum.TextXAlignment.Left
+			oBtn:SetAttribute("BgRole", "Main"); Instance.new("UICorner", oBtn).CornerRadius = UDim.new(0, 6)
+			oBtn:SetAttribute("TextRole", "Text"); oBtn:SetAttribute("BaseTextSize", 13)
+			oBtn.MouseButton1Click:Connect(function()
+				current = opt; valTxt.Text = opt; open = false; icon.Text = "▼"
+				updateSize()
+				if callback then callback(opt) end
+			end)
+		end
+		if open then updateSize() end
 	end
+
+	DropdownAPI:Refresh(options)
+	if default and table.find(options, default) then
+		valTxt.Text = tostring(default)
+		if callback then callback(default) end
+	end
+
+	return DropdownAPI
 end
 
 local function CreateButton(page, text, callback)
@@ -832,16 +870,36 @@ local function CreateButton(page, text, callback)
 	btn.MouseButton1Click:Connect(function() if callback then callback() end end)
 end
 
--- Search Logic
+-- ✅ SEARCH BAR FIX
 searchBox:GetPropertyChangedSignal("Text"):Connect(function()
 	local filter = string.lower(searchBox.Text)
 	if currentTab then
-		for _, child in ipairs(currentTab.page:GetChildren()) do
-			if child:IsA("Frame") and not child:FindFirstChild("UIListLayout") then
-				local label = child:FindFirstChildOfClass("TextLabel")
-				if label then child.Visible = string.find(string.lower(label.Text), filter) ~= nil end
+		for _, section in ipairs(currentTab.page:GetChildren()) do
+			if section:GetAttribute("IsSection") then
+				local hasVisibleRow = false
+				local secBtn = section:FindFirstChildOfClass("TextButton")
+				local secTitleLabel = secBtn and secBtn:FindFirstChildOfClass("TextLabel")
+				local titleMatches = secTitleLabel and string.find(string.lower(secTitleLabel.Text), filter) ~= nil
+
+				for _, row in ipairs(section:GetDescendants()) do
+					if row:GetAttribute("IsRow") then
+						local label = row:FindFirstChildOfClass("TextLabel")
+						if label then
+							local rowMatches = string.find(string.lower(label.Text), filter) ~= nil
+							if filter == "" or titleMatches or rowMatches then
+								row.Visible = true; hasVisibleRow = true
+							else
+								row.Visible = false
+							end
+						end
+					end
+				end
+				section.Visible = filter == "" or titleMatches or hasVisibleRow
 			end
 		end
+		
+		local pageLayout = currentTab.page:FindFirstChildOfClass("UIListLayout")
+		if pageLayout then currentTab.page.CanvasSize = UDim2.new(0, 0, 0, pageLayout.AbsoluteContentSize.Y + 20) end
 	end
 end)
 
@@ -869,7 +927,7 @@ local pgSettings = CreateTab("Settings", iconSettings)
 
 -- --- PAGE HOME ---
 local secWelcome = CreateSection(pgHome, "Welcome", true)
-local welcomeTxt = CreateParagraph(secWelcome, "Welcome to MxFlow hub, the new generation of script for roblox.\nCreated by MxF Studio.")
+local welcomeTxt = CreateParagraph(secWelcome, "Welcome to MxFlow hub, the new generation of script for roblox.\nCreated by two French Founders, all rights to this menu are reserved.")
 
 task.spawn(function()
 	while task.wait(1.5) do
@@ -957,6 +1015,44 @@ CreateButton(secWorld, "Teleport to Island", function() teleportToIsland(selecte
 local secNPC = CreateSection(pgTp, "NPC Teleport", true)
 CreateDropdown(secNPC, "Select NPC", NpcNames, selectedNPC, function(v) selectedNPC = v end)
 CreateButton(secNPC, "Teleport to NPC", function() teleportToSpecificNPC(selectedNPC) end)
+
+-- ✅ NOUVEAU PLAYER TELEPORT FIXÉ (AVEC FLY SPEED 110)
+local secPlayerTp = CreateSection(pgTp, "Player Teleport", true)
+local targetPlayerName = ""
+local playerNames = {}
+for _, p in ipairs(Players:GetPlayers()) do if p ~= player then table.insert(playerNames, p.Name) end end
+if #playerNames == 0 then table.insert(playerNames, "No Players") end
+
+local playerDropdown = CreateDropdown(secPlayerTp, "Select Player", playerNames, playerNames[1], function(v) targetPlayerName = v end)
+
+CreateButton(secPlayerTp, "Refresh Players", function()
+	local newNames = {}
+	for _, p in ipairs(Players:GetPlayers()) do if p ~= player then table.insert(newNames, p.Name) end end
+	if #newNames == 0 then table.insert(newNames, "No Players") end
+	playerDropdown:Refresh(newNames)
+	ApplyTheme() 
+end)
+
+CreateButton(secPlayerTp, "Teleport to Player", function()
+	if targetPlayerName and targetPlayerName ~= "No Players" and targetPlayerName ~= "" then
+		local targetP = Players:FindFirstChild(targetPlayerName)
+		local char = player.Character
+		local root = char and char:FindFirstChild("HumanoidRootPart")
+		local hum = char and char:FindFirstChild("Humanoid")
+		
+		if targetP and targetP.Character and targetP.Character:FindFirstChild("HumanoidRootPart") and root and hum then
+			local targetCFrame = targetP.Character.HumanoidRootPart.CFrame * CFrame.new(0, 0, -3)
+			local dist = (root.Position - targetCFrame.Position).Magnitude
+			local flyTime = dist / 110 -- Vitesse Stricte à 110
+			
+			hum.PlatformStand = true
+			local tween = TweenService:Create(root, TweenInfo.new(flyTime, Enum.EasingStyle.Linear), {CFrame = targetCFrame})
+			tween:Play()
+			tween.Completed:Wait()
+			hum.PlatformStand = false
+		end
+	end
+end)
 
 -- --- PAGE SHOP ---
 local secShop = CreateSection(pgShop, "Merchant Shop", true)
