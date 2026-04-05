@@ -1,6 +1,6 @@
 -- ======================================================
--- 👑 MxF HUB - SPEED HUB X EDITION (FINAL V27 - ULTIMATE)
--- Fixed Search Bar, Fixed Player TP, Long Range Aura
+-- 👑 MxF HUB - SPEED HUB X EDITION (FINAL V28 - ULTIMATE)
+-- Auto Summon Boss Farm (4 New Bosses + Loop System)
 -- ======================================================
 
 local Players = game:GetService("Players")
@@ -104,7 +104,7 @@ for npcName, _ in pairs(NpcIslandMap) do table.insert(NpcNames, npcName) end
 local MobNames, BossNames, IslandNames = {}, {}, {}
 for m, i in pairs(MobDatabase) do table.insert(MobNames, m); if not table.find(IslandNames, i) then table.insert(IslandNames, i) end end
 for b, i in pairs(BossDatabase) do table.insert(BossNames, b); if not table.find(IslandNames, i) then table.insert(IslandNames, i) end end
-local ExtraIslands = {"Dungeon", "Boss", "Sailor", "Tower", "Desert", "SnowIsland"}
+local ExtraIslands = {"Dungeon", "Boss", "Sailor", "Tower", "Desert", "SnowIsland", "SoulDominion"}
 for _, island in ipairs(ExtraIslands) do if not table.find(IslandNames, island) then table.insert(IslandNames, island) end end
 
 table.sort(MobNames); table.sort(BossNames); table.sort(IslandNames); table.sort(NpcNames)
@@ -123,10 +123,32 @@ local statPoints = {Melee = 1, Defense = 1, Sword = 1, Power = 1}
 local autoStatsToggles = {Melee = false, Defense = false, Sword = false, Power = false}
 local autoStatsCoroutine = nil
 
-local summonBossesList = {"SaberBoss", "QinShiBoss", "IchigoBoss", "GilgameshBoss", "BlessedMaidenBoss", "SaberAlterBoss", "MoonSlayerBoss"}
+-- ✅ DATABASE DES AUTO SUMMON BOSS
+local summonBossesList = {
+	"SaberBoss", "QinShiBoss", "IchigoBoss", "GilgameshBoss", "BlessedMaidenBoss", 
+	"SaberAlterBoss", "MoonSlayerBoss", "TrueAizenBoss", "AtomicBoss", 
+	"StrongestTodayBoss (Gojo)", "StrongestHistoryBoss (Sukuna)"
+}
+local SummonBossConfig = {
+	["SaberBoss"] = { RemoteType = 1, Island = "Boss", HasDiff = false, TargetName = "Saber" },
+	["QinShiBoss"] = { RemoteType = 1, Island = "Boss", HasDiff = false, TargetName = "Qin" },
+	["IchigoBoss"] = { RemoteType = 1, Island = "Boss", HasDiff = false, TargetName = "Ichigo" },
+	["GilgameshBoss"] = { RemoteType = 1, Island = "Boss", HasDiff = true, TargetName = "Gilgamesh" },
+	["BlessedMaidenBoss"] = { RemoteType = 1, Island = "Boss", HasDiff = true, TargetName = "Blessed" },
+	["SaberAlterBoss"] = { RemoteType = 1, Island = "Boss", HasDiff = true, TargetName = "Saber Alter" },
+	["MoonSlayerBoss"] = { RemoteType = 1, Island = "Boss", HasDiff = true, TargetName = "Moon" },
+	["TrueAizenBoss"] = { RemoteType = 2, Island = "SoulDominion", HasDiff = true, TargetName = "True" },
+	["AtomicBoss"] = { RemoteType = 3, Island = "Lawless", HasDiff = true, TargetName = "Atomic" },
+	["StrongestTodayBoss (Gojo)"] = { RemoteType = 4, Island = "Shinjuku", HasDiff = true, PrefixArg = "StrongestToday", TargetName = "Gojo" },
+	["StrongestHistoryBoss (Sukuna)"] = { RemoteType = 4, Island = "Shinjuku", HasDiff = true, PrefixArg = "StrongestHistory", TargetName = "Sukuna" }
+}
+
 local selectedSummonBoss = summonBossesList[1]
 local difficultyList = {"Normal", "Medium", "Hard", "Extreme"}; local selectedDifficulty = difficultyList[1]
-local bossesWithDifficulty = { ["GilgameshBoss"] = true, ["BlessedMaidenBoss"] = true, ["SaberAlterBoss"] = true, ["MoonSlayerBoss"] = true }
+local summonBossAmount = 1
+local currentSummonCount = 0
+local autoFarmSummonBossEnabled = false
+local autoFarmSummonToggleFunc = nil
 
 local selectedMob, selectedBoss, selectedIsland, selectedNPC = MobNames[1], BossNames[1], IslandNames[1], NpcNames[1]
 local autoFarmMob, autoFarmBoss, autoFarmTower, killauraEnabled = false, false, false, false
@@ -141,7 +163,6 @@ local flyEnabled, flySpeedValue = false, 50
 local infJumpEnabled, noClipEnabled = false, false
 local bodyVelocity, bodyGyro, speedConn, flyConn, noClipConn
 local isBindingAny = false
-
 local tabButtons = {} 
 
 -- ==========================================
@@ -151,7 +172,23 @@ local function teleportToIsland(islandName)
 	pcall(function() ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("TeleportToPortal"):FireServer(islandName) end)
 end
 
--- ✅ TP PNJ (Vol fluide à 110 Studs/sec + Délai 0.5s)
+local function safeLerpTP(targetCFrame)
+	local char = player.Character; local root = char and char:FindFirstChild("HumanoidRootPart")
+	if not root then return end
+	local dist = (root.Position - targetCFrame.Position).Magnitude
+	local steps = math.ceil(dist / 35)
+	if steps > 0 then
+		for i = 1, steps do
+			if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then break end
+			player.Character.HumanoidRootPart.CFrame = root.CFrame:Lerp(targetCFrame, i / steps)
+			task.wait() 
+		end
+	end
+	if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+		player.Character.HumanoidRootPart.CFrame = targetCFrame
+	end
+end
+
 local function teleportToSpecificNPC(npcName)
 	local targetIsland = NpcIslandMap[npcName] or "Starter"
 	teleportToIsland(targetIsland)
@@ -209,15 +246,28 @@ local function getTarget(targetName, isSpecific)
 		end
 	end
 	
+	if targetPlayers and targetName ~= "NearestTower" then
+		for _, p in ipairs(Players:GetPlayers()) do
+			if p ~= player and p.Character then
+				local hum = p.Character:FindFirstChild("Humanoid")
+				local root = p.Character:FindFirstChild("HumanoidRootPart")
+				if hum and hum.Health > 0 and root then
+					local dist = (root.Position - myPos).Magnitude
+					if dist <= combatRadius and dist < minDist then minDist = dist; closest = p.Character end
+				end
+			end
+		end
+	end
+	
 	return closest, minDist
 end
 
--- ✅ COMBAT SYSTEM ET KILLAURA LONG RANGE FIX
+-- ✅ COMBAT SYSTEM (INCLUT LE NOUVEAU AUTO SUMMON BOSS FARM)
 local function startCombatLoop()
 	if combatCoroutine then task.cancel(combatCoroutine) end
 	combatCoroutine = task.spawn(function()
 		local hitRemote = game:GetService("ReplicatedStorage"):WaitForChild("CombatSystem"):WaitForChild("Remotes"):WaitForChild("RequestHit")
-		while autoFarmMob or autoFarmBoss or autoFarmTower or killauraEnabled do
+		while autoFarmMob or autoFarmBoss or autoFarmTower or autoFarmSummonBossEnabled or killauraEnabled do
 			local char = player.Character
 			if char and char:FindFirstChild("HumanoidRootPart") then
 				local root = char.HumanoidRootPart; local hum = char.Humanoid
@@ -228,10 +278,21 @@ local function startCombatLoop()
 					float.Name = "FarmFloat"; float.MaxForce = Vector3.new(0, 0, 0); float.Velocity = Vector3.zero; float.Parent = root
 				end
 				
-				if autoFarmMob or autoFarmBoss or autoFarmTower then
+				if autoFarmMob or autoFarmBoss or autoFarmTower or autoFarmSummonBossEnabled then
 					hum.PlatformStand = true
-					local tName = autoFarmTower and "NearestTower" or (autoFarmMob and selectedMob or selectedBoss)
-					local island = autoFarmTower and "" or (autoFarmMob and MobDatabase[selectedMob] or BossDatabase[selectedBoss])
+					
+					local tName, island
+					if autoFarmSummonBossEnabled then
+						local conf = SummonBossConfig[selectedSummonBoss]
+						tName = conf.TargetName
+						island = conf.Island
+					elseif autoFarmTower then
+						tName = "NearestTower"
+						island = ""
+					else
+						tName = autoFarmMob and selectedMob or selectedBoss
+						island = autoFarmMob and MobDatabase[selectedMob] or BossDatabase[selectedBoss]
+					end
 					
 					if currentFarmIsland ~= island and not autoFarmTower then
 						float.MaxForce = Vector3.new(0, 0, 0)
@@ -257,27 +318,52 @@ local function startCombatLoop()
 						end
 					else 
 						float.MaxForce = Vector3.new(100000, 100000, 100000)
-						if not autoFarmTower then
-							if not isOnRightIsland then teleportToIsland(island); task.wait(3.5); isOnRightIsland = true end
+						
+						-- ✅ GESTION DE L'AUTO SUMMON BOSS (SPAWN SI AUCUN BOSS EN VUE)
+						if autoFarmSummonBossEnabled then
+							if currentSummonCount < summonBossAmount then
+								pcall(function()
+									local rs = game:GetService("ReplicatedStorage")
+									local conf = SummonBossConfig[selectedSummonBoss]
+									if conf.RemoteType == 1 then
+										local rem = rs:WaitForChild("Remotes"):WaitForChild("RequestSummonBoss")
+										if conf.HasDiff then rem:FireServer(selectedSummonBoss, selectedDifficulty) else rem:FireServer(selectedSummonBoss) end
+									elseif conf.RemoteType == 2 then
+										rs:WaitForChild("RemoteEvents"):WaitForChild("RequestSpawnTrueAizen"):FireServer(selectedDifficulty)
+									elseif conf.RemoteType == 3 then
+										rs:WaitForChild("RemoteEvents"):WaitForChild("RequestSpawnAtomic"):FireServer(selectedDifficulty)
+									elseif conf.RemoteType == 4 then
+										rs:WaitForChild("Remotes"):WaitForChild("RequestSpawnStrongestBoss"):FireServer(conf.PrefixArg, selectedDifficulty)
+									end
+								end)
+								currentSummonCount = currentSummonCount + 1
+								task.wait(4) -- Attend que l'animation de spawn se termine
+							else
+								-- Fini, on désactive
+								autoFarmSummonBossEnabled = false
+								currentSummonCount = 0
+								if autoFarmSummonToggleFunc then autoFarmSummonToggleFunc(false) end
+							end
+						else
+							-- Farm normal
+							if not autoFarmTower then
+								if not isOnRightIsland then teleportToIsland(island); task.wait(3.5); isOnRightIsland = true end
+							end
 						end
 					end
 					
-				-- ✅ NOUVEAU KILLAURA LONG RANGE (Détache la Hitbox sur le mob)
 				elseif killauraEnabled then
 					float.MaxForce = Vector3.new(0, 0, 0)
 					if not flyEnabled then hum.PlatformStand = false end
 					
-					-- Utilise le mob sélectionné dans AutoFarm (Target specific)
-					local target, dist = getTarget(selectedMob, true)
+					local tName = auraTargetsFarmMob and selectedMob or nil
+					local target, dist = getTarget(tName, auraTargetsFarmMob)
 					currentTarget = target
 					
 					if target and target:FindFirstChild("HumanoidRootPart") then
 						local targetRoot = target.HumanoidRootPart
-						
-						-- Tourne le personnage vers le mob pour que l'attaque parte dans sa direction
 						root.CFrame = CFrame.lookAt(root.Position, Vector3.new(targetRoot.Position.X, root.Position.Y, targetRoot.Position.Z))
 						
-						-- Auto Equip Tool si pas fait
 						local currentTool = char:FindFirstChildOfClass("Tool")
 						if not currentTool then
 							local tool = player.Backpack:FindFirstChildOfClass("Tool")
@@ -285,12 +371,10 @@ local function startCombatLoop()
 							currentTool = tool
 						end
 
-						-- Extender / Teleport Hitbox
 						if currentTool then
 							for _, part in ipairs(currentTool:GetDescendants()) do
 								if part:IsA("BasePart") and (part.Name == "Hitbox" or part.Name == "Handle" or part.Name == "Blade") then
-									part.Massless = true
-									part.CanCollide = false
+									part.Massless = true; part.CanCollide = false
 									part.Size = Vector3.new(combatRadius, combatRadius, combatRadius)
 									part.CFrame = targetRoot.CFrame
 								end
@@ -317,7 +401,7 @@ end
 
 task.spawn(function()
 	while task.wait(0.5) do
-		if autoSkillEnabled and currentTarget and currentTarget:FindFirstChild("Humanoid") and currentTarget.Humanoid.Health > 0 and (autoFarmMob or autoFarmBoss or autoFarmTower or killauraEnabled) then
+		if autoSkillEnabled and currentTarget and currentTarget:FindFirstChild("Humanoid") and currentTarget.Humanoid.Health > 0 and (autoFarmMob or autoFarmBoss or autoFarmTower or autoFarmSummonBossEnabled or killauraEnabled) then
 			local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
 			local tRoot = currentTarget:FindFirstChild("HumanoidRootPart")
 			if root and tRoot and (root.Position - tRoot.Position).Magnitude < 40 then
@@ -425,7 +509,7 @@ player.CharacterAdded:Connect(function()
 	if walkSpeedEnabled then updateSpeed() end
 	if noClipEnabled then enableNoClip() end
 	if flyEnabled then toggleFly() end
-	if autoFarmMob or autoFarmBoss or autoFarmTower or killauraEnabled then startCombatLoop() end
+	if autoFarmMob or autoFarmBoss or autoFarmTower or autoFarmSummonBossEnabled or killauraEnabled then startCombatLoop() end
 end)
 
 
@@ -724,14 +808,20 @@ local function CreateToggle(page, text, default, callback)
 	circle.Size = UDim2.new(0, 16, 0, 16); circle.Position = state and UDim2.new(1, -19, 0.5, -8) or UDim2.new(0, 3, 0.5, -8)
 	circle.BackgroundColor3 = Color3.fromRGB(255, 255, 255); Instance.new("UICorner", circle).CornerRadius = UDim.new(1, 0)
 
-	btn.MouseButton1Click:Connect(function()
-		state = not state
+	local function setState(newState)
+		state = newState
 		pill:SetAttribute("ToggleState", state)
 		local tPos = state and UDim2.new(1, -19, 0.5, -8) or UDim2.new(0, 3, 0.5, -8)
 		TweenService:Create(circle, TweenInfo.new(0.2), {Position = tPos}):Play()
 		ApplyTheme()
+	end
+
+	btn.MouseButton1Click:Connect(function()
+		setState(not state)
 		callback(state)
 	end)
+	
+	return setState
 end
 
 local function CreateSlider(page, text, min, max, default, callback)
@@ -793,7 +883,6 @@ local function CreateKeybind(page, text, defaultKey, callback)
 	end)
 end
 
--- ✅ DROPDOWN FIX (Boutons listés s'adaptent au thème)
 local function CreateDropdown(page, text, options, default, callback)
 	local current = default or options[1]
 	local row = CreateRow(page, 45); row.ClipsDescendants = true
@@ -870,39 +959,6 @@ local function CreateButton(page, text, callback)
 	btn.MouseButton1Click:Connect(function() if callback then callback() end end)
 end
 
--- ✅ SEARCH BAR FIX
-searchBox:GetPropertyChangedSignal("Text"):Connect(function()
-	local filter = string.lower(searchBox.Text)
-	if currentTab then
-		for _, section in ipairs(currentTab.page:GetChildren()) do
-			if section:GetAttribute("IsSection") then
-				local hasVisibleRow = false
-				local secBtn = section:FindFirstChildOfClass("TextButton")
-				local secTitleLabel = secBtn and secBtn:FindFirstChildOfClass("TextLabel")
-				local titleMatches = secTitleLabel and string.find(string.lower(secTitleLabel.Text), filter) ~= nil
-
-				for _, row in ipairs(section:GetDescendants()) do
-					if row:GetAttribute("IsRow") then
-						local label = row:FindFirstChildOfClass("TextLabel")
-						if label then
-							local rowMatches = string.find(string.lower(label.Text), filter) ~= nil
-							if filter == "" or titleMatches or rowMatches then
-								row.Visible = true; hasVisibleRow = true
-							else
-								row.Visible = false
-							end
-						end
-					end
-				end
-				section.Visible = filter == "" or titleMatches or hasVisibleRow
-			end
-		end
-		
-		local pageLayout = currentTab.page:FindFirstChildOfClass("UIListLayout")
-		if pageLayout then currentTab.page.CanvasSize = UDim2.new(0, 0, 0, pageLayout.AbsoluteContentSize.Y + 20) end
-	end
-end)
-
 -- ==========================================
 -- 4. CONSTRUCTION DU HUB
 -- ==========================================
@@ -947,12 +1003,29 @@ CreateToggle(secAutoSkills, "Enable Auto Skills", false, function(v) autoSkillEn
 local secSummon = CreateSection(pgAuto, "Auto Summon Boss", true)
 CreateDropdown(secSummon, "Select Boss", summonBossesList, selectedSummonBoss, function(v) selectedSummonBoss = v end)
 CreateDropdown(secSummon, "Select Difficulty", difficultyList, selectedDifficulty, function(v) selectedDifficulty = v end)
-CreateButton(secSummon, "Summon Boss", function()
+
+CreateInput(secSummon, "Amount to Summon", "Multiplier", summonBossAmount, function(v) summonBossAmount = tonumber(v) or 1 end)
+CreateButton(secSummon, "Summon Boss Once (Manual)", function()
 	pcall(function()
-		local remote = game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("RequestSummonBoss")
-		if bossesWithDifficulty[selectedSummonBoss] then remote:FireServer(selectedSummonBoss, selectedDifficulty)
-		else remote:FireServer(selectedSummonBoss) end
+		local rs = game:GetService("ReplicatedStorage")
+		local conf = SummonBossConfig[selectedSummonBoss]
+		if conf.RemoteType == 1 then
+			local rem = rs:WaitForChild("Remotes"):WaitForChild("RequestSummonBoss")
+			if conf.HasDiff then rem:FireServer(selectedSummonBoss, selectedDifficulty) else rem:FireServer(selectedSummonBoss) end
+		elseif conf.RemoteType == 2 then
+			rs:WaitForChild("RemoteEvents"):WaitForChild("RequestSpawnTrueAizen"):FireServer(selectedDifficulty)
+		elseif conf.RemoteType == 3 then
+			rs:WaitForChild("RemoteEvents"):WaitForChild("RequestSpawnAtomic"):FireServer(selectedDifficulty)
+		elseif conf.RemoteType == 4 then
+			rs:WaitForChild("Remotes"):WaitForChild("RequestSpawnStrongestBoss"):FireServer(conf.PrefixArg, selectedDifficulty)
+		end
 	end)
+end)
+
+autoFarmSummonToggleFunc = CreateToggle(secSummon, "Auto Farm Summon Boss", false, function(v)
+	autoFarmSummonBossEnabled = v
+	currentSummonCount = 0
+	if v then startCombatLoop() end
 end)
 
 local secAutoChest = CreateSection(pgAuto, "Auto Chest", true)
@@ -1016,7 +1089,6 @@ local secNPC = CreateSection(pgTp, "NPC Teleport", true)
 CreateDropdown(secNPC, "Select NPC", NpcNames, selectedNPC, function(v) selectedNPC = v end)
 CreateButton(secNPC, "Teleport to NPC", function() teleportToSpecificNPC(selectedNPC) end)
 
--- ✅ NOUVEAU PLAYER TELEPORT FIXÉ (AVEC FLY SPEED 110)
 local secPlayerTp = CreateSection(pgTp, "Player Teleport", true)
 local targetPlayerName = ""
 local playerNames = {}
@@ -1043,7 +1115,7 @@ CreateButton(secPlayerTp, "Teleport to Player", function()
 		if targetP and targetP.Character and targetP.Character:FindFirstChild("HumanoidRootPart") and root and hum then
 			local targetCFrame = targetP.Character.HumanoidRootPart.CFrame * CFrame.new(0, 0, -3)
 			local dist = (root.Position - targetCFrame.Position).Magnitude
-			local flyTime = dist / 110 -- Vitesse Stricte à 110
+			local flyTime = dist / 110 
 			
 			hum.PlatformStand = true
 			local tween = TweenService:Create(root, TweenInfo.new(flyTime, Enum.EasingStyle.Linear), {CFrame = targetCFrame})
