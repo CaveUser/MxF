@@ -1,6 +1,6 @@
 -- ======================================================
--- 👑 MxF HUB - SPEED HUB X EDITION (FINAL V24 - ULTIMATE)
--- Floating Fix, Logo Fix, Safe Theme Engine
+-- 👑 MxF HUB - SPEED HUB X EDITION (FINAL V26 - ULTIMATE)
+-- Perfect Theme Engine, UI Upgrades, All (No V) Skills
 -- ======================================================
 
 local Players = game:GetService("Players")
@@ -82,7 +82,7 @@ local NpcIslandMap = {
 	["DungeonMerchantNPC"] = "Dungeon", ["DungeonPortalsNPC"] = "Dungeon", ["ShadowMonarchBuyerNPC"] = "Dungeon", ["CidBuyer"] = "Dungeon",
 	["SummonBossNPC"] = "Boss", ["ExchangeNPC"] = "Boss", ["MoonSlayerBuff"] = "Boss", ["GilgameshBuyerNPC"] = "Boss", ["SaberAlterBuyerNPC"] = "Boss", ["GrailCraftNPC"] = "Boss", ["BabylonCraftNPC"] = "Boss", ["SaberAlterMasteryNPC"] = "Boss", ["QinShiBuyer"] = "Boss", ["MoonSlayerSeller"] = "Boss", ["BlessedMaidenBuyerNPC"] = "Boss", ["BlessedMaidenMasteryNPC"] = "Boss",
 	["QuestNPC4"] = "Jungle", ["QuestNPC3"] = "Jungle",
-	["QuestNPC5"] = "Desert", ["ObservationBuyer"] = "Desert", ["QuestNPC6"] = "Desert", -- Corrigé ici
+	["QuestNPC5"] = "Desert", ["ObservationBuyer"] = "Desert", ["QuestNPC6"] = "Desert",
 	["DarkBladeNPC"] = "SnowIsland", ["RagnaQuestlineBuff"] = "SnowIsland", ["RagnaBuyer"] = "SnowIsland", ["HakiQuestNPC"] = "SnowIsland", ["ArtifactsUnlocker"] = "SnowIsland", ["ArtifactMilestoneNPC"] = "SnowIsland", ["QuestNPC7"] = "SnowIsland", ["QuestNPC8"] = "SnowIsland",
 	["AscendNPC"] = "Sailor", ["StorageNPC"] = "Sailor", ["TitlesNPC"] = "Sailor", ["GemFruitDealer"] = "Sailor", ["MerchantNPC"] = "Sailor", ["CoinFruitDealer"] = "Sailor", ["RerollStatNPC"] = "Sailor", ["TraitNPC"] = "Sailor", ["BossRushShopNPC"] = "Sailor", ["BossRushPortalNPC"] = "Sailor", ["BossRushMerchantNPC"] = "Sailor", ["JinwooMovesetNPC"] = "Sailor", ["AlucardBuyer"] = "Sailor",
 	["GryphonBuyerNPC"] = "Shibuya", ["BlessingNPC"] = "Shibuya", ["EnchantNPC"] = "Shibuya", ["GojoMovesetNPC"] = "Shibuya", ["YujiBuyerNPC"] = "Shibuya", ["SukunaMovesetNPC"] = "Shibuya", ["QuestNPC9"] = "Shibuya", ["QuestNPC10"] = "Shibuya", ["ConquerorHakiNPC"] = "Shibuya",
@@ -104,7 +104,7 @@ for npcName, _ in pairs(NpcIslandMap) do table.insert(NpcNames, npcName) end
 local MobNames, BossNames, IslandNames = {}, {}, {}
 for m, i in pairs(MobDatabase) do table.insert(MobNames, m); if not table.find(IslandNames, i) then table.insert(IslandNames, i) end end
 for b, i in pairs(BossDatabase) do table.insert(BossNames, b); if not table.find(IslandNames, i) then table.insert(IslandNames, i) end end
-local ExtraIslands = {"Dungeon", "Boss", "Sailor", "Tower", "Desert", "SnowIsland"} -- Corrigé ici
+local ExtraIslands = {"Dungeon", "Boss", "Sailor", "Tower", "Desert", "SnowIsland"}
 for _, island in ipairs(ExtraIslands) do if not table.find(IslandNames, island) then table.insert(IslandNames, island) end end
 
 table.sort(MobNames); table.sort(BossNames); table.sort(IslandNames); table.sort(NpcNames)
@@ -142,6 +142,8 @@ local infJumpEnabled, noClipEnabled = false, false
 local bodyVelocity, bodyGyro, speedConn, flyConn, noClipConn
 local isBindingAny = false
 
+local tabButtons = {} -- Pour forcer le chargement de la page Home
+
 -- ==========================================
 -- 2. BACK-END LOGIC
 -- ==========================================
@@ -149,32 +151,34 @@ local function teleportToIsland(islandName)
 	pcall(function() ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("TeleportToPortal"):FireServer(islandName) end)
 end
 
-local function safeLerpTP(targetCFrame)
-	local char = player.Character; local root = char and char:FindFirstChild("HumanoidRootPart")
-	if not root then return end
-	local dist = (root.Position - targetCFrame.Position).Magnitude
-	local steps = math.ceil(dist / 35)
-	if steps > 0 then
-		for i = 1, steps do
-			if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then break end
-			player.Character.HumanoidRootPart.CFrame = root.CFrame:Lerp(targetCFrame, i / steps)
-			task.wait() 
-		end
-	end
-	if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-		player.Character.HumanoidRootPart.CFrame = targetCFrame
-	end
-end
-
+-- ✅ NOUVEAU TP PNJ (Vol fluide à 110 Studs/sec + Délai 0.5s)
 local function teleportToSpecificNPC(npcName)
 	local targetIsland = NpcIslandMap[npcName] or "Starter"
+	
 	teleportToIsland(targetIsland)
-	task.wait(3.5) 
-	local npc = workspace:FindFirstChild("ServiceNPCs") and workspace.ServiceNPCs:FindFirstChild(npcName)
-	if npc and npc:FindFirstChild("HumanoidRootPart") then
-		local targetCFrame = npc.HumanoidRootPart.CFrame * CFrame.new(0, 0, -4)
-		safeLerpTP(targetCFrame)
-	else print("Erreur NPC introuvable.") end
+	task.wait(0.5) -- Attente exacte demandée de 0.5s après le TP Île
+	
+	pcall(function()
+		local npc = workspace:FindFirstChild("ServiceNPCs") and workspace.ServiceNPCs:FindFirstChild(npcName)
+		local char = player.Character
+		local root = char and char:FindFirstChild("HumanoidRootPart")
+		local hum = char and char:FindFirstChild("Humanoid")
+		
+		if npc and npc:FindFirstChild("HumanoidRootPart") and root and hum then
+			local targetCFrame = npc.HumanoidRootPart.CFrame * CFrame.new(0, 0, -4)
+			local dist = (root.Position - targetCFrame.Position).Magnitude
+			
+			local flyTime = dist / 110 -- Vitesse stricte de 110 studs par seconde
+			
+			hum.PlatformStand = true
+			local tween = TweenService:Create(root, TweenInfo.new(flyTime, Enum.EasingStyle.Linear), {CFrame = targetCFrame})
+			tween:Play()
+			tween.Completed:Wait()
+			hum.PlatformStand = false
+		else 
+			print("Erreur : Le NPC " .. npcName .. " est introuvable sur " .. targetIsland) 
+		end
+	end)
 end
 
 local function getTarget(targetName, isSpecific)
@@ -206,10 +210,24 @@ local function getTarget(targetName, isSpecific)
 			end
 		end
 	end
+	
+	if targetPlayers and targetName ~= "NearestTower" then
+		for _, p in ipairs(Players:GetPlayers()) do
+			if p ~= player and p.Character then
+				local hum = p.Character:FindFirstChild("Humanoid")
+				local root = p.Character:FindFirstChild("HumanoidRootPart")
+				if hum and hum.Health > 0 and root then
+					local dist = (root.Position - myPos).Magnitude
+					if dist <= combatRadius and dist < minDist then minDist = dist; closest = p.Character end
+				end
+			end
+		end
+	end
+	
 	return closest, minDist
 end
 
--- ✅ COMBAT SYSTEM AVEC FLOATING FIX (Pas de tremblote, pas d'ancrage)
+-- COMBAT SYSTEM (V21 STABLE)
 local function startCombatLoop()
 	if combatCoroutine then task.cancel(combatCoroutine) end
 	combatCoroutine = task.spawn(function()
@@ -219,14 +237,10 @@ local function startCombatLoop()
 			if char and char:FindFirstChild("HumanoidRootPart") then
 				local root = char.HumanoidRootPart; local hum = char.Humanoid
 				
-				-- Système de Floating
 				local float = root:FindFirstChild("FarmFloat")
 				if not float then
 					float = Instance.new("BodyVelocity")
-					float.Name = "FarmFloat"
-					float.MaxForce = Vector3.new(0, 0, 0)
-					float.Velocity = Vector3.zero
-					float.Parent = root
+					float.Name = "FarmFloat"; float.MaxForce = Vector3.new(0, 0, 0); float.Velocity = Vector3.zero; float.Parent = root
 				end
 				
 				if autoFarmMob or autoFarmBoss or autoFarmTower then
@@ -252,15 +266,14 @@ local function startCombatLoop()
 							local tTime = math.clamp(dist / tweenSpeed, 0.05, 3)
 							TweenService:Create(root, TweenInfo.new(tTime, Enum.EasingStyle.Linear), {CFrame = targetCFrame}):Play()
 						else
-							float.MaxForce = Vector3.new(100000, 100000, 100000) -- Gèle en l'air
+							float.MaxForce = Vector3.new(100000, 100000, 100000)
 							root.CFrame = targetCFrame
 							pcall(function() hitRemote:FireServer() end)
 						end
 					else 
 						float.MaxForce = Vector3.new(100000, 100000, 100000)
 						if not autoFarmTower then
-							if not isOnRightIsland then teleportToIsland(island); task.wait(3.5); isOnRightIsland = true
-							end
+							if not isOnRightIsland then teleportToIsland(island); task.wait(3.5); isOnRightIsland = true end
 						end
 					end
 				elseif killauraEnabled then
@@ -278,7 +291,7 @@ local function startCombatLoop()
 			end
 			task.wait(combatCooldown)
 		end
-		-- Clean Up
+		
 		if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
 			local float = player.Character.HumanoidRootPart:FindFirstChild("FarmFloat")
 			if float then float:Destroy() end
@@ -296,6 +309,9 @@ task.spawn(function()
 				if selectedSkill == "All" then
 					local keys = {Enum.KeyCode.Z, Enum.KeyCode.X, Enum.KeyCode.C, Enum.KeyCode.V, Enum.KeyCode.F}
 					for _, k in ipairs(keys) do VIM:SendKeyEvent(true, k, false, game); task.wait(0.05); VIM:SendKeyEvent(false, k, false, game) end
+				elseif selectedSkill == "All (No V)" then
+					local keys = {Enum.KeyCode.Z, Enum.KeyCode.X, Enum.KeyCode.C, Enum.KeyCode.F}
+					for _, k in ipairs(keys) do VIM:SendKeyEvent(true, k, false, game); task.wait(0.05); VIM:SendKeyEvent(false, k, false, game) end
 				else
 					local k = Enum.KeyCode[selectedSkill]; VIM:SendKeyEvent(true, k, false, game); task.wait(0.05); VIM:SendKeyEvent(false, k, false, game)
 				end
@@ -312,10 +328,15 @@ local function startAutoChestLoop()
 		while autoChestEnabled do
 			pcall(function()
 				if selectedChestType == "All" then
-					for _, chest in ipairs(allChests) do remote:FireServer("Use", chest, tonumber(chestAmountToOpen) or 1, false); task.wait(0.1) end
-				else remote:FireServer("Use", selectedChestType, tonumber(chestAmountToOpen) or 1, false) end
+					for _, chest in ipairs(allChests) do 
+						remote:FireServer("Use", chest, tonumber(chestAmountToOpen) or 1, false)
+						task.wait(0.4) 
+					end
+				else 
+					remote:FireServer("Use", selectedChestType, tonumber(chestAmountToOpen) or 1, false) 
+				end
 			end)
-			task.wait(1)
+			task.wait(1.5)
 		end
 	end)
 end
@@ -414,19 +435,18 @@ local mainFrame = Instance.new("Frame", screenGui)
 mainFrame.Size = UIConfig.WindowSize
 mainFrame.Position = UDim2.new(0.5, -380, 0.5, -260)
 mainFrame.BorderSizePixel = 0
-mainFrame:SetAttribute("ColorRole", "Main")
+mainFrame:SetAttribute("BgRole", "Main")
 Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 10)
 
 local stroke = Instance.new("UIStroke", mainFrame)
-stroke.Thickness = 1.2; stroke:SetAttribute("ColorRole", "Stroke")
+stroke.Thickness = 1.2; stroke:SetAttribute("StrokeRole", "Stroke")
 
 local sidebar = Instance.new("Frame", mainFrame)
 sidebar.Size = UDim2.new(0, 200, 1, 0)
 sidebar.BorderSizePixel = 0
-sidebar:SetAttribute("ColorRole", "Side")
+sidebar:SetAttribute("BgRole", "Side")
 Instance.new("UICorner", sidebar).CornerRadius = UDim.new(0, 10)
 
--- ✅ VRAI LOGO MXF RESTAURÉ
 local logoImg = Instance.new("ImageLabel", sidebar)
 logoImg.Size = UDim2.new(0, 45, 0, 45); logoImg.Position = UDim2.new(0, 15, 0, 15)
 logoImg.BackgroundTransparency = 1; logoImg.ScaleType = Enum.ScaleType.Fit
@@ -444,12 +464,12 @@ end)
 local hubName = Instance.new("TextLabel", sidebar)
 hubName.Size = UDim2.new(1, -70, 0, 45); hubName.Position = UDim2.new(0, 70, 0, 15)
 hubName.BackgroundTransparency = 1; hubName.Text = "MxF HUB"
-hubName:SetAttribute("ColorRole", "Text"); hubName:SetAttribute("BaseTextSize", 20)
+hubName:SetAttribute("TextRole", "Text"); hubName:SetAttribute("BaseTextSize", 20)
 hubName.TextXAlignment = Enum.TextXAlignment.Left
 
 local searchFrame = Instance.new("Frame", sidebar)
 searchFrame.Size = UDim2.new(1, -30, 0, 36); searchFrame.Position = UDim2.new(0, 15, 0, 75)
-searchFrame:SetAttribute("ColorRole", "Elem")
+searchFrame:SetAttribute("BgRole", "Elem")
 Instance.new("UICorner", searchFrame).CornerRadius = UDim.new(0, 8)
 
 local searchIcon = Instance.new("ImageLabel", searchFrame)
@@ -460,7 +480,7 @@ searchIcon.ImageColor3 = Color3.fromRGB(150, 150, 150)
 local searchBox = Instance.new("TextBox", searchFrame)
 searchBox.Size = UDim2.new(1, -40, 1, 0); searchBox.Position = UDim2.new(0, 35, 0, 0)
 searchBox.BackgroundTransparency = 1; searchBox.PlaceholderText = "Search..."; searchBox.Text = ""
-searchBox:SetAttribute("ColorRole", "Text"); searchBox:SetAttribute("BaseTextSize", 14)
+searchBox:SetAttribute("TextRole", "Text"); searchBox:SetAttribute("BaseTextSize", 14)
 searchBox.TextXAlignment = Enum.TextXAlignment.Left
 
 local navList = Instance.new("ScrollingFrame", sidebar)
@@ -474,10 +494,18 @@ container.BackgroundTransparency = 1
 
 local activeTabName = Instance.new("TextLabel", container)
 activeTabName.Size = UDim2.new(1, 0, 0, 45); activeTabName.BackgroundTransparency = 1; activeTabName.Text = "Home"
-activeTabName:SetAttribute("ColorRole", "Text"); activeTabName:SetAttribute("BaseTextSize", 26)
+activeTabName:SetAttribute("TextRole", "Text"); activeTabName:SetAttribute("BaseTextSize", 26)
 activeTabName.TextXAlignment = Enum.TextXAlignment.Left
 
--- ✅ THEME ENGINE SÉCURISÉ
+-- ✅ COPYRIGHT WATERMARK
+local versionLbl = Instance.new("TextLabel", mainFrame)
+versionLbl.Size = UDim2.new(0, 300, 0, 20); versionLbl.Position = UDim2.new(1, -15, 1, -10)
+versionLbl.AnchorPoint = Vector2.new(1, 1); versionLbl.BackgroundTransparency = 1
+versionLbl.Text = "V.1.0.0 | © MxFlow created by MxF Studio, All rights reserved."
+versionLbl.TextXAlignment = Enum.TextXAlignment.Right
+versionLbl:SetAttribute("TextRole", "TextDim"); versionLbl:SetAttribute("BaseTextSize", 11)
+
+-- ✅ THEME ENGINE SÉCURISÉ & RÉPARÉ
 local function ApplyTheme()
 	pcall(function()
 		local t = Themes[CurrentSettings.Theme] or Themes["Default"]
@@ -489,34 +517,38 @@ local function ApplyTheme()
 		sidebar.BackgroundTransparency = 1 - opacity
 
 		for _, obj in ipairs(screenGui:GetDescendants()) do
-			-- Fonts & Sizes
+			-- Fonts & Text Size
 			if obj:IsA("TextLabel") or obj:IsA("TextButton") or obj:IsA("TextBox") then
 				obj.Font = f
 				local bSize = obj:GetAttribute("BaseTextSize")
 				if bSize then obj.TextSize = tonumber(bSize) + offset end
-				
-				local role = obj:GetAttribute("ColorRole")
-				if role == "Text" then obj.TextColor3 = t.Text
-				elseif role == "TextDim" then obj.TextColor3 = t.TextDim 
-				elseif role == "Accent" then obj.TextColor3 = t.Accent end
 			end
 
-			-- Colors
+			-- Text Color
 			if obj:IsA("GuiObject") then
-				local role = obj:GetAttribute("ColorRole")
-				if role == "Main" then obj.BackgroundColor3 = t.Main
-				elseif role == "Side" then obj.BackgroundColor3 = t.Side
-				elseif role == "Elem" then obj.BackgroundColor3 = t.Elem
-				elseif role == "AccentBg" then obj.BackgroundColor3 = t.Accent
-				elseif role == "TogglePill" then obj.BackgroundColor3 = obj:GetAttribute("ToggleState") and t.Accent or t.Stroke
-				elseif role == "TabBtn" then 
+				local txtRole = obj:GetAttribute("TextRole")
+				if txtRole == "Text" then obj.TextColor3 = t.Text
+				elseif txtRole == "TextDim" then obj.TextColor3 = t.TextDim 
+				elseif txtRole == "Accent" then obj.TextColor3 = t.Accent end
+			end
+
+			-- Background Color
+			if obj:IsA("GuiObject") then
+				local bgRole = obj:GetAttribute("BgRole")
+				if bgRole == "Main" then obj.BackgroundColor3 = t.Main
+				elseif bgRole == "Side" then obj.BackgroundColor3 = t.Side
+				elseif bgRole == "Elem" then obj.BackgroundColor3 = t.Elem
+				elseif bgRole == "AccentBg" then obj.BackgroundColor3 = t.Accent
+				elseif bgRole == "TogglePill" then obj.BackgroundColor3 = obj:GetAttribute("ToggleState") and t.Accent or t.Stroke
+				elseif bgRole == "TabBtn" then 
 					obj.BackgroundTransparency = obj:GetAttribute("IsActive") and 0 or 1
 					if obj:GetAttribute("IsActive") then obj.BackgroundColor3 = t.Elem end
 				end
 			end
 
+			-- Stroke Color
 			if obj:IsA("UIStroke") then
-				if obj:GetAttribute("ColorRole") == "Stroke" then obj.Color = t.Stroke end
+				if obj:GetAttribute("StrokeRole") == "Stroke" then obj.Color = t.Stroke end
 			end
 		end
 	end)
@@ -530,7 +562,7 @@ local function CreateTab(name, iconId)
 	local btn = Instance.new("TextButton", navList)
 	btn.Size = UDim2.new(0.9, 0, 0, 42); btn.BackgroundTransparency = 1; btn.Text = ""
 	Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 10)
-	btn:SetAttribute("ColorRole", "TabBtn"); btn:SetAttribute("IsActive", false)
+	btn:SetAttribute("BgRole", "TabBtn"); btn:SetAttribute("IsActive", false)
 
 	local icon = Instance.new("ImageLabel", btn)
 	icon.Size = UDim2.new(0, 20, 0, 20); icon.Position = UDim2.new(0, 12, 0.5, -10); icon.Image = "rbxassetid://"..iconId; icon.BackgroundTransparency = 1
@@ -539,7 +571,7 @@ local function CreateTab(name, iconId)
 	local lbl = Instance.new("TextLabel", btn)
 	lbl.Size = UDim2.new(1, -45, 1, 0); lbl.Position = UDim2.new(0, 40, 0, 0); lbl.BackgroundTransparency = 1; lbl.Text = name
 	lbl.TextXAlignment = Enum.TextXAlignment.Left
-	lbl:SetAttribute("ColorRole", "TextDim"); lbl:SetAttribute("BaseTextSize", 16)
+	lbl:SetAttribute("TextRole", "TextDim"); lbl:SetAttribute("BaseTextSize", 16)
 
 	local page = Instance.new("ScrollingFrame", container)
 	page.Size = UDim2.new(1, 0, 1, -55); page.Position = UDim2.new(0, 0, 0, 55); page.BackgroundTransparency = 1; page.ScrollBarThickness = 2; page.Visible = false
@@ -547,15 +579,16 @@ local function CreateTab(name, iconId)
 	pageLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function() page.CanvasSize = UDim2.new(0, 0, 0, pageLayout.AbsoluteContentSize.Y + 20) end)
 
 	Pages[name] = page
+	tabButtons[name] = btn
 
 	btn.MouseButton1Click:Connect(function()
 		for n, p in pairs(Pages) do p.Visible = (n == name) end
 		if currentTab then 
 			currentTab.btn:SetAttribute("IsActive", false)
-			currentTab.lbl:SetAttribute("ColorRole", "TextDim")
+			currentTab.lbl:SetAttribute("TextRole", "TextDim")
 		end
 		btn:SetAttribute("IsActive", true)
-		lbl:SetAttribute("ColorRole", "Text")
+		lbl:SetAttribute("TextRole", "Text")
 		activeTabName.Text = name; currentTab = {btn = btn, lbl = lbl, page = page}
 		ApplyTheme()
 	end)
@@ -566,9 +599,9 @@ end
 local function CreateSection(page, text, defaultOpen)
 	local section = Instance.new("Frame", page)
 	section.Size = UDim2.new(1, -10, 0, 45); section.ClipsDescendants = true
-	section:SetAttribute("ColorRole", "Elem")
+	section:SetAttribute("BgRole", "Elem")
 	Instance.new("UICorner", section).CornerRadius = UDim.new(0, 10)
-	local sStroke = Instance.new("UIStroke", section); sStroke:SetAttribute("ColorRole", "Stroke")
+	local sStroke = Instance.new("UIStroke", section); sStroke:SetAttribute("StrokeRole", "Stroke")
 	
 	local btn = Instance.new("TextButton", section)
 	btn.Size = UDim2.new(1, 0, 0, 45); btn.BackgroundTransparency = 1; btn.Text = ""
@@ -576,12 +609,12 @@ local function CreateSection(page, text, defaultOpen)
 	local lbl = Instance.new("TextLabel", btn)
 	lbl.Size = UDim2.new(1, -30, 1, 0); lbl.Position = UDim2.new(0, 15, 0, 0); lbl.BackgroundTransparency = 1; lbl.Text = text
 	lbl.TextXAlignment = Enum.TextXAlignment.Left
-	lbl:SetAttribute("ColorRole", "Text"); lbl:SetAttribute("BaseTextSize", 16)
+	lbl:SetAttribute("TextRole", "Text"); lbl:SetAttribute("BaseTextSize", 16)
 	
 	local icon = Instance.new("TextLabel", btn)
 	icon.Size = UDim2.new(0, 20, 1, 0); icon.Position = UDim2.new(1, -25, 0, 0); icon.BackgroundTransparency = 1
 	icon.Text = defaultOpen and "▼" or "▶"
-	icon:SetAttribute("ColorRole", "TextDim"); icon:SetAttribute("BaseTextSize", 14)
+	icon:SetAttribute("TextRole", "TextDim"); icon:SetAttribute("BaseTextSize", 14)
 	
 	local content = Instance.new("Frame", section)
 	content.Size = UDim2.new(1, 0, 0, 0); content.Position = UDim2.new(0, 0, 0, 45); content.BackgroundTransparency = 1
@@ -618,12 +651,20 @@ local function CreateTitle(page, text)
 	
 	local lbl = Instance.new("TextLabel", frame)
 	lbl.Size = UDim2.new(1, 0, 1, -5); lbl.BackgroundTransparency = 1; lbl.Text = text; lbl.TextXAlignment = Enum.TextXAlignment.Left
-	lbl:SetAttribute("ColorRole", "Text"); lbl:SetAttribute("BaseTextSize", 15)
+	lbl:SetAttribute("TextRole", "Text"); lbl:SetAttribute("BaseTextSize", 15)
 	
 	local line = Instance.new("Frame", frame)
 	line.Size = UDim2.new(1, 0, 0, 1); line.Position = UDim2.new(0, 0, 1, -2)
-	line:SetAttribute("ColorRole", "Stroke"); line.BorderSizePixel = 0
+	line:SetAttribute("BgRole", "Stroke"); line.BorderSizePixel = 0
 	
+	return lbl
+end
+
+local function CreateParagraph(page, text)
+	local lbl = Instance.new("TextLabel", page)
+	lbl.Size = UDim2.new(1, -20, 0, 60); lbl.BackgroundTransparency = 1
+	lbl.Text = text; lbl.TextWrapped = true; lbl.TextXAlignment = Enum.TextXAlignment.Center
+	lbl:SetAttribute("TextRole", "TextDim"); lbl:SetAttribute("BaseTextSize", 14)
 	return lbl
 end
 
@@ -636,17 +677,17 @@ local function CreateInput(page, text, placeholder, default, callback)
 	
 	local lbl = Instance.new("TextLabel", row)
 	lbl.Size = UDim2.new(0.5, 0, 1, 0); lbl.Position = UDim2.new(0, 10, 0, 0); lbl.BackgroundTransparency = 1; lbl.Text = text; lbl.TextXAlignment = Enum.TextXAlignment.Left
-	lbl:SetAttribute("ColorRole", "TextDim"); lbl:SetAttribute("BaseTextSize", 14)
+	lbl:SetAttribute("TextRole", "TextDim"); lbl:SetAttribute("BaseTextSize", 14)
 
 	local inputBg = Instance.new("Frame", row)
 	inputBg.Size = UDim2.new(0.4, 0, 0, 32); inputBg.Position = UDim2.new(1, -10, 0.5, -16); inputBg.AnchorPoint = Vector2.new(1, 0)
-	inputBg:SetAttribute("ColorRole", "Main"); Instance.new("UICorner", inputBg).CornerRadius = UDim.new(0, 8)
-	local str = Instance.new("UIStroke", inputBg); str:SetAttribute("ColorRole", "Stroke")
+	inputBg:SetAttribute("BgRole", "Main"); Instance.new("UICorner", inputBg).CornerRadius = UDim.new(0, 8)
+	local str = Instance.new("UIStroke", inputBg); str:SetAttribute("StrokeRole", "Stroke")
 
 	local box = Instance.new("TextBox", inputBg)
 	box.Size = UDim2.new(1, -10, 1, 0); box.Position = UDim2.new(0, 5, 0, 0); box.BackgroundTransparency = 1
 	box.Text = tostring(default); box.PlaceholderText = placeholder
-	box:SetAttribute("ColorRole", "Accent"); box:SetAttribute("BaseTextSize", 13)
+	box:SetAttribute("TextRole", "Accent"); box:SetAttribute("BaseTextSize", 13)
 
 	box.FocusLost:Connect(function() if callback then callback(box.Text) end end)
 end
@@ -656,14 +697,14 @@ local function CreateToggle(page, text, default, callback)
 	
 	local lbl = Instance.new("TextLabel", row)
 	lbl.Size = UDim2.new(0.7, 0, 1, 0); lbl.Position = UDim2.new(0, 10, 0, 0); lbl.BackgroundTransparency = 1; lbl.Text = text; lbl.TextXAlignment = Enum.TextXAlignment.Left
-	lbl:SetAttribute("ColorRole", "TextDim"); lbl:SetAttribute("BaseTextSize", 14)
+	lbl:SetAttribute("TextRole", "TextDim"); lbl:SetAttribute("BaseTextSize", 14)
 	
 	local btn = Instance.new("TextButton", row)
 	btn.Size = UDim2.new(1, 0, 1, 0); btn.BackgroundTransparency = 1; btn.Text = ""
 
 	local pill = Instance.new("Frame", row)
 	pill.Size = UDim2.new(0, 42, 0, 22); pill.Position = UDim2.new(1, -52, 0.5, -11)
-	pill:SetAttribute("ColorRole", "TogglePill"); pill:SetAttribute("ToggleState", state)
+	pill:SetAttribute("BgRole", "TogglePill"); pill:SetAttribute("ToggleState", state)
 	Instance.new("UICorner", pill).CornerRadius = UDim.new(1, 0)
 
 	local circle = Instance.new("Frame", pill)
@@ -685,19 +726,19 @@ local function CreateSlider(page, text, min, max, default, callback)
 	
 	local lbl = Instance.new("TextLabel", row)
 	lbl.Size = UDim2.new(0.5, 0, 0, 25); lbl.Position = UDim2.new(0, 10, 0, 5); lbl.BackgroundTransparency = 1; lbl.Text = text; lbl.TextXAlignment = Enum.TextXAlignment.Left
-	lbl:SetAttribute("ColorRole", "TextDim"); lbl:SetAttribute("BaseTextSize", 14)
+	lbl:SetAttribute("TextRole", "TextDim"); lbl:SetAttribute("BaseTextSize", 14)
 
 	local valLbl = Instance.new("TextLabel", row)
 	valLbl.Size = UDim2.new(0.4, 0, 0, 25); valLbl.Position = UDim2.new(1, -50, 0, 5); valLbl.BackgroundTransparency = 1; valLbl.Text = tostring(default); valLbl.TextXAlignment = Enum.TextXAlignment.Right
-	valLbl:SetAttribute("ColorRole", "Accent"); valLbl:SetAttribute("BaseTextSize", 13)
+	valLbl:SetAttribute("TextRole", "Accent"); valLbl:SetAttribute("BaseTextSize", 13)
 	
 	local sliderBg = Instance.new("TextButton", row)
 	sliderBg.Size = UDim2.new(1, -20, 0, 6); sliderBg.Position = UDim2.new(0, 10, 0, 35); sliderBg.Text = ""
-	sliderBg:SetAttribute("ColorRole", "Main"); Instance.new("UICorner", sliderBg).CornerRadius = UDim.new(1, 0)
+	sliderBg:SetAttribute("BgRole", "Main"); Instance.new("UICorner", sliderBg).CornerRadius = UDim.new(1, 0)
 	
 	local fill = Instance.new("Frame", sliderBg)
 	fill.Size = UDim2.new((default-min)/(max-min), 0, 1, 0)
-	fill:SetAttribute("ColorRole", "AccentBg"); Instance.new("UICorner", fill).CornerRadius = UDim.new(1, 0)
+	fill:SetAttribute("BgRole", "AccentBg"); Instance.new("UICorner", fill).CornerRadius = UDim.new(1, 0)
 	
 	local dragging = false
 	local function update()
@@ -716,23 +757,23 @@ local function CreateKeybind(page, text, defaultKey, callback)
 	
 	local lbl = Instance.new("TextLabel", row)
 	lbl.Size = UDim2.new(0.5, 0, 1, 0); lbl.Position = UDim2.new(0, 10, 0, 0); lbl.BackgroundTransparency = 1; lbl.Text = text; lbl.TextXAlignment = Enum.TextXAlignment.Left
-	lbl:SetAttribute("ColorRole", "TextDim"); lbl:SetAttribute("BaseTextSize", 14)
+	lbl:SetAttribute("TextRole", "TextDim"); lbl:SetAttribute("BaseTextSize", 14)
 
 	local btn = Instance.new("TextButton", row)
 	btn.Size = UDim2.new(0.4, 0, 0, 28); btn.Position = UDim2.new(1, -10, 0.5, -14); btn.AnchorPoint = Vector2.new(1, 0)
-	btn:SetAttribute("ColorRole", "Main"); btn.Text = currentKey.Name
-	btn:SetAttribute("ColorRole", "Text"); btn:SetAttribute("BaseTextSize", 12); Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
-	local str = Instance.new("UIStroke", btn); str:SetAttribute("ColorRole", "Stroke")
+	btn:SetAttribute("BgRole", "Main"); btn.Text = currentKey.Name
+	btn:SetAttribute("TextRole", "Text"); btn:SetAttribute("BaseTextSize", 12); Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
+	local str = Instance.new("UIStroke", btn); str:SetAttribute("StrokeRole", "Stroke")
 
 	local isBinding = false
 	btn.MouseButton1Click:Connect(function()
-		isBinding = true; isBindingAny = true; btn.Text = "Press Key..."; btn:SetAttribute("ColorRole", "Accent")
+		isBinding = true; isBindingAny = true; btn.Text = "Press Key..."; btn:SetAttribute("TextRole", "Accent")
 		ApplyTheme()
 	end)
 
 	UIS.InputBegan:Connect(function(input)
 		if isBinding and input.UserInputType == Enum.UserInputType.Keyboard then
-			currentKey = input.KeyCode; btn.Text = currentKey.Name; btn:SetAttribute("ColorRole", "Text")
+			currentKey = input.KeyCode; btn.Text = currentKey.Name; btn:SetAttribute("TextRole", "Text")
 			isBinding = false; task.wait(0.1); isBindingAny = false; ApplyTheme()
 			if callback then callback(currentKey) end
 		end
@@ -745,20 +786,20 @@ local function CreateDropdown(page, text, options, default, callback)
 
 	local lbl = Instance.new("TextLabel", row)
 	lbl.Size = UDim2.new(0.4, 0, 0, 45); lbl.Position = UDim2.new(0, 10, 0, 0); lbl.BackgroundTransparency = 1; lbl.Text = text; lbl.TextXAlignment = Enum.TextXAlignment.Left
-	lbl:SetAttribute("ColorRole", "TextDim"); lbl:SetAttribute("BaseTextSize", 14)
+	lbl:SetAttribute("TextRole", "TextDim"); lbl:SetAttribute("BaseTextSize", 14)
 
 	local btn = Instance.new("TextButton", row)
 	btn.Size = UDim2.new(0.5, 0, 0, 32); btn.Position = UDim2.new(1, -10, 0, 6); btn.AnchorPoint = Vector2.new(1, 0); btn.Text = ""
-	btn:SetAttribute("ColorRole", "Main"); Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 8)
-	local str = Instance.new("UIStroke", btn); str:SetAttribute("ColorRole", "Stroke")
+	btn:SetAttribute("BgRole", "Main"); Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 8)
+	local str = Instance.new("UIStroke", btn); str:SetAttribute("StrokeRole", "Stroke")
 
 	local valTxt = Instance.new("TextLabel", btn)
 	valTxt.Size = UDim2.new(1, -30, 1, 0); valTxt.Position = UDim2.new(0, 10, 0, 0); valTxt.BackgroundTransparency = 1; valTxt.Text = tostring(current); valTxt.TextXAlignment = Enum.TextXAlignment.Left
-	valTxt:SetAttribute("ColorRole", "Text"); valTxt:SetAttribute("BaseTextSize", 13)
+	valTxt:SetAttribute("TextRole", "Text"); valTxt:SetAttribute("BaseTextSize", 13)
 
 	local icon = Instance.new("TextLabel", btn)
 	icon.Size = UDim2.new(0, 20, 1, 0); icon.Position = UDim2.new(1, -20, 0, 0); icon.BackgroundTransparency = 1; icon.Text = "▼"
-	icon:SetAttribute("ColorRole", "TextDim"); icon:SetAttribute("BaseTextSize", 11)
+	icon:SetAttribute("TextRole", "TextDim"); icon:SetAttribute("BaseTextSize", 11)
 
 	local list = Instance.new("Frame", row)
 	list.Size = UDim2.new(1, -20, 0, 0); list.Position = UDim2.new(0, 10, 0, 50); list.BackgroundTransparency = 1
@@ -773,8 +814,8 @@ local function CreateDropdown(page, text, options, default, callback)
 
 	for _, opt in ipairs(options) do
 		local oBtn = Instance.new("TextButton", list); oBtn.Size = UDim2.new(1, 0, 0, 28); oBtn.Text = "  " .. opt; oBtn.TextXAlignment = Enum.TextXAlignment.Left
-		oBtn:SetAttribute("ColorRole", "Elem"); Instance.new("UICorner", oBtn).CornerRadius = UDim.new(0, 6)
-		oBtn:SetAttribute("ColorRole", "Text"); oBtn:SetAttribute("BaseTextSize", 13)
+		oBtn:SetAttribute("BgRole", "Main"); Instance.new("UICorner", oBtn).CornerRadius = UDim.new(0, 6)
+		oBtn:SetAttribute("TextRole", "Text"); oBtn:SetAttribute("BaseTextSize", 13)
 		oBtn.MouseButton1Click:Connect(function()
 			current = opt; valTxt.Text = opt; open = false; icon.Text = "▼"
 			TweenService:Create(row, TweenInfo.new(0.2), {Size = UDim2.new(1, -10, 0, 45)}):Play()
@@ -787,7 +828,7 @@ local function CreateButton(page, text, callback)
 	local row = CreateRow(page, 45)
 	local btn = Instance.new("TextButton", row)
 	btn.Size = UDim2.new(1, 0, 1, 0); btn.BackgroundTransparency = 1; btn.Text = text
-	btn:SetAttribute("ColorRole", "Accent"); btn:SetAttribute("BaseTextSize", 15)
+	btn:SetAttribute("TextRole", "Accent"); btn:SetAttribute("BaseTextSize", 15)
 	btn.MouseButton1Click:Connect(function() if callback then callback() end end)
 end
 
@@ -828,9 +869,7 @@ local pgSettings = CreateTab("Settings", iconSettings)
 
 -- --- PAGE HOME ---
 local secWelcome = CreateSection(pgHome, "Welcome", true)
-local welcomeTxt = CreateTitle(secWelcome, "Welcome to MxF HUB Premium !")
-welcomeTxt.TextXAlignment = Enum.TextXAlignment.Center
-welcomeTxt:SetAttribute("BaseTextSize", 18)
+local welcomeTxt = CreateParagraph(secWelcome, "Welcome to MxFlow hub, the new generation of script for roblox.\nCreated by MxF Studio.")
 
 task.spawn(function()
 	while task.wait(1.5) do
@@ -844,7 +883,7 @@ CreateButton(secDiscord, "Copy Discord Link", function() if setclipboard then se
 
 -- --- PAGE AUTO ---
 local secAutoSkills = CreateSection(pgAuto, "Auto Skills", true)
-CreateDropdown(secAutoSkills, "Select Skill", {"All", "Z", "X", "C", "V", "F"}, "All", function(v) selectedSkill = v end)
+CreateDropdown(secAutoSkills, "Select Skill", {"All", "All (No V)", "Z", "X", "C", "V", "F"}, "All", function(v) selectedSkill = v end)
 CreateToggle(secAutoSkills, "Enable Auto Skills", false, function(v) autoSkillEnabled = v end)
 
 local secSummon = CreateSection(pgAuto, "Auto Summon Boss", true)
@@ -955,6 +994,23 @@ end)
 -- --- PAGE SETTINGS ---
 local secSystem = CreateSection(pgSettings, "System Settings", true)
 CreateKeybind(secSystem, "Toggle UI Key", UIConfig.ToggleKey, function(newKey) UIConfig.ToggleKey = newKey end)
+CreateButton(secSystem, "Rejoin Server", function() game:GetService("TeleportService"):TeleportToPlaceInstance(game.PlaceId, game.JobId, player) end)
+CreateButton(secSystem, "Server Hop", function()
+	pcall(function()
+		local Http = game:GetService("HttpService"); local TPS = game:GetService("TeleportService")
+		local Api = "https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?sortOrder=Asc&limit=100"
+		local function ListServers(cursor)
+			local Raw = game:HttpGet(Api .. ((cursor and "&cursor="..cursor) or ""))
+			return Http:JSONDecode(Raw)
+		end
+		local Server, Next; repeat
+			local Servers = ListServers(Next)
+			Server = Servers.data[math.random(1, #Servers.data)]
+			Next = Servers.nextPageCursor
+		until Server.playing < Server.maxPlayers and Server.id ~= game.JobId
+		TPS:TeleportToPlaceInstance(game.PlaceId, Server.id, player)
+	end)
+end)
 CreateButton(secSystem, "Unload Interface", function() 
 	if targetGui:FindFirstChild("MxFHubPremium") then targetGui.MxFHubPremium:Destroy() end 
 	if targetGui:FindFirstChild("MxFHubOverlay") then targetGui.MxFHubOverlay:Destroy() end
@@ -975,5 +1031,5 @@ end)
 
 -- Init
 ApplyTheme()
-navList:GetChildren()[1].MouseButton1Click:Fire()
+if tabButtons["Home"] then tabButtons["Home"].MouseButton1Click:Fire() end
 print("MxF Hub The Ultimate Edition Chargé !")
