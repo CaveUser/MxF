@@ -1,5 +1,5 @@
 -- ======================================================
--- 👑 MxF HUB - V1.0.0
+-- 👑 MxF HUB 
 -- ======================================================
 
 local Players = game:GetService("Players")
@@ -107,7 +107,7 @@ for npcName, _ in pairs(NpcIslandMap) do table.insert(NpcNames, npcName) end
 local MobNames, BossNames, IslandNames = {}, {}, {}
 for m, i in pairs(MobDatabase) do table.insert(MobNames, m); if not table.find(IslandNames, i) then table.insert(IslandNames, i) end end
 for b, i in pairs(BossDatabase) do table.insert(BossNames, b); if not table.find(IslandNames, i) then table.insert(IslandNames, i) end end
-local ExtraIslands = {"Dungeon", "Boss", "Sailor", "Tower", "Desert", "SnowIsland"}
+local ExtraIslands = {"Dungeon", "Boss", "Sailor", "Tower", "Desert", "SnowIsland", "SoulDominion"}
 for _, island in ipairs(ExtraIslands) do if not table.find(IslandNames, island) then table.insert(IslandNames, island) end end
 
 table.sort(MobNames); table.sort(BossNames); table.sort(IslandNames); table.sort(NpcNames)
@@ -161,6 +161,12 @@ local bodyVelocity, bodyGyro, speedConn, flyConn, noClipConn
 local isBindingAny = false
 local tabFunctions = {} 
 
+-- Variables Player Follow
+local targetPlayerInputName = ""
+local isFollowingPlayer = false
+local followPlayerConnection = nil
+local followToggleFunc = nil
+
 -- ==========================================
 -- 2. BACK-END LOGIC
 -- ==========================================
@@ -189,26 +195,19 @@ local function teleportToSpecificNPC(npcName)
 	local targetIsland = NpcIslandMap[npcName] or "Starter"
 	teleportToIsland(targetIsland)
 	task.wait(0.5) 
-	
 	pcall(function()
 		local npc = workspace:FindFirstChild("ServiceNPCs") and workspace.ServiceNPCs:FindFirstChild(npcName)
 		local char = player.Character
 		local root = char and char:FindFirstChild("HumanoidRootPart")
 		local hum = char and char:FindFirstChild("Humanoid")
-		
 		if npc and npc:FindFirstChild("HumanoidRootPart") and root and hum then
 			local targetCFrame = npc.HumanoidRootPart.CFrame * CFrame.new(0, 0, -4)
 			local dist = (root.Position - targetCFrame.Position).Magnitude
 			local flyTime = dist / 110 
-			
 			hum.PlatformStand = true
 			local tween = TweenService:Create(root, TweenInfo.new(flyTime, Enum.EasingStyle.Linear), {CFrame = targetCFrame})
-			tween:Play()
-			tween.Completed:Wait()
-			hum.PlatformStand = false
-		else 
-			print("Error: NPC " .. npcName .. " not found on " .. targetIsland) 
-		end
+			tween:Play(); tween.Completed:Wait(); hum.PlatformStand = false
+		else print("Error: NPC " .. npcName .. " not found on " .. targetIsland) end
 	end)
 end
 
@@ -241,21 +240,19 @@ local function getTarget(targetName, isSpecific)
 			end
 		end
 	end
-	
-	if targetPlayers and targetName ~= "NearestTower" then
-		for _, p in ipairs(Players:GetPlayers()) do
-			if p ~= player and p.Character then
-				local hum = p.Character:FindFirstChild("Humanoid")
-				local root = p.Character:FindFirstChild("HumanoidRootPart")
-				if hum and hum.Health > 0 and root then
-					local dist = (root.Position - myPos).Magnitude
-					if dist <= combatRadius and dist < minDist then minDist = dist; closest = p.Character end
-				end
-			end
+	return closest, minDist
+end
+
+-- ✅ FONCTION RECHERCHE JOUEUR (Nom ou DisplayName)
+local function getTargetPlayer()
+	if targetPlayerInputName == "" then return nil end
+	local nameSearch = string.lower(targetPlayerInputName)
+	for _, p in ipairs(Players:GetPlayers()) do
+		if p ~= player and (string.sub(string.lower(p.Name), 1, #nameSearch) == nameSearch or string.sub(string.lower(p.DisplayName), 1, #nameSearch) == nameSearch) then
+			return p
 		end
 	end
-	
-	return closest, minDist
+	return nil
 end
 
 local function startCombatLoop()
@@ -498,15 +495,21 @@ player.CharacterAdded:Connect(function()
 	if noClipEnabled then enableNoClip() end
 	if flyEnabled then toggleFly() end
 	if autoFarmMob or autoFarmBoss or autoFarmTower or autoFarmSummonBossEnabled or killauraEnabled then startCombatLoop() end
+	
+	-- Stop Follow à la mort
+	if isFollowingPlayer then
+		isFollowingPlayer = false
+		if followPlayerConnection then followPlayerConnection:Disconnect() followPlayerConnection = nil end
+		if followToggleFunc then followToggleFunc(false) end
+	end
 end)
 
 
 -- ==========================================
--- 3. MOTEUR UI & KEY SYSTEM (API PYTHON FIX)
+-- 3. MOTEUR UI & KEY SYSTEM
 -- ==========================================
 
 local requestFunc = request or http_request or (http and http.request) or syn and syn.request
-
 local hwid = ""
 pcall(function()
 	if gethwid then hwid = gethwid()
@@ -521,32 +524,18 @@ local function VerifyKey(keyToTest)
 	local queryUrl = string.format("%s?key=%s&user_id=%s&hwid=%s", API_URL, keyToTest, userId, hwid)
 
 	local success, response = pcall(function()
-		return requestFunc({
-			Url = queryUrl,
-			Method = "GET",
-			Headers = {
-				["x-api-secret"] = API_SECRET
-			}
-		})
+		return requestFunc({Url = queryUrl, Method = "GET", Headers = {["x-api-secret"] = API_SECRET}})
 	end)
 
 	if success and response then
 		if response.StatusCode == 200 then
 			local successJson, responseBody = pcall(function() return HttpService:JSONDecode(response.Body) end)
 			if successJson and type(responseBody) == "table" then
-				if responseBody.valid == true then
-					return true, responseBody.message or "Success"
-				else
-					return false, responseBody.message or "Invalid key"
-				end
-			else
-				return false, "API read error"
-			end
-		elseif response.StatusCode == 429 then
-			return false, "Too many requests, try again later."
-		else
-			return false, "API Error (" .. tostring(response.StatusCode) .. ")"
-		end
+				if responseBody.valid == true then return true, responseBody.message or "Success"
+				else return false, responseBody.message or "Invalid key" end
+			else return false, "API read error" end
+		elseif response.StatusCode == 429 then return false, "Too many requests, try again later."
+		else return false, "API Error (" .. tostring(response.StatusCode) .. ")" end
 	end
 	return false, "API connection error"
 end
@@ -620,13 +609,10 @@ versionLbl.Text = "V.1.0.0 | © MxFlow created by MxF Studio, All rights reserve
 versionLbl.TextXAlignment = Enum.TextXAlignment.Right
 versionLbl:SetAttribute("TextRole", "TextDim"); versionLbl:SetAttribute("BaseTextSize", 11)
 
-
--- KEY SYSTEM & LOADING UI
 local authFrame = Instance.new("Frame", screenGui)
 authFrame.Size = UDim2.new(0, 350, 0, 250); authFrame.Position = UDim2.new(0.5, -175, 0.5, -125)
 authFrame:SetAttribute("BgRole", "Main"); Instance.new("UICorner", authFrame).CornerRadius = UDim.new(0, 10)
-Instance.new("UIStroke", authFrame):SetAttribute("StrokeRole", "Stroke")
-authFrame.Visible = false
+Instance.new("UIStroke", authFrame):SetAttribute("StrokeRole", "Stroke"); authFrame.Visible = false
 
 local authTitle = Instance.new("TextLabel", authFrame)
 authTitle.Size = UDim2.new(1, 0, 0, 50); authTitle.Position = UDim2.new(0, 0, 0, 20); authTitle.BackgroundTransparency = 1
@@ -655,20 +641,36 @@ getBtn:SetAttribute("TextRole", "TextDim"); getBtn:SetAttribute("BaseTextSize", 
 getBtn.MouseButton1Click:Connect(function() if setclipboard then setclipboard("https://discord.gg/w3Dr9VzjS6") end end)
 
 local loadFrame = Instance.new("Frame", screenGui)
-loadFrame.Size = UDim2.new(0, 300, 0, 100); loadFrame.Position = UDim2.new(0.5, -150, 0.5, -50)
+loadFrame.Size = UDim2.new(0, 350, 0, 140); loadFrame.Position = UDim2.new(0.5, -175, 0.5, -70)
 loadFrame:SetAttribute("BgRole", "Main"); Instance.new("UICorner", loadFrame).CornerRadius = UDim.new(0, 10)
-Instance.new("UIStroke", loadFrame):SetAttribute("StrokeRole", "Stroke")
-loadFrame.Visible = false
+Instance.new("UIStroke", loadFrame):SetAttribute("StrokeRole", "Stroke"); loadFrame.Visible = false
+
+local loadLogo = Instance.new("ImageLabel", loadFrame)
+loadLogo.Size = UDim2.new(0, 40, 0, 40); loadLogo.Position = UDim2.new(0.5, -20, 0, 15)
+loadLogo.BackgroundTransparency = 1; loadLogo.ScaleType = Enum.ScaleType.Fit
+pcall(function()
+	local logoUrl = "https://i.goopics.net/lpt7p1.png"
+	if writefile and getcustomasset then
+		local data = game:HttpGet(logoUrl); writefile("mxf_logo.png", data)
+		loadLogo.Image = getcustomasset("mxf_logo.png")
+	else loadLogo.Image = "rbxassetid://10629237000" end
+end)
 
 local loadText = Instance.new("TextLabel", loadFrame)
-loadText.Size = UDim2.new(1, 0, 0, 40); loadText.Position = UDim2.new(0, 0, 0, 15); loadText.BackgroundTransparency = 1
+loadText.Size = UDim2.new(1, 0, 0, 30); loadText.Position = UDim2.new(0, 0, 0, 60); loadText.BackgroundTransparency = 1
 loadText.Text = "Authenticating..."; loadText:SetAttribute("TextRole", "Text"); loadText:SetAttribute("BaseTextSize", 16)
 
 local barBg = Instance.new("Frame", loadFrame)
-barBg.Size = UDim2.new(0.8, 0, 0, 10); barBg.Position = UDim2.new(0.1, 0, 0, 65)
+barBg.Size = UDim2.new(0.8, 0, 0, 8); barBg.Position = UDim2.new(0.1, 0, 0, 105)
 barBg:SetAttribute("BgRole", "Elem"); Instance.new("UICorner", barBg).CornerRadius = UDim.new(1, 0)
 local barFill = Instance.new("Frame", barBg)
 barFill.Size = UDim2.new(0, 0, 1, 0); barFill:SetAttribute("BgRole", "AccentBg"); Instance.new("UICorner", barFill).CornerRadius = UDim.new(1, 0)
+
+task.spawn(function()
+	while task.wait(0.8) do
+		if loadFrame.Visible then TweenService:Create(loadText, TweenInfo.new(0.8, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, 0, true), {TextTransparency = 0.5}):Play() end
+	end
+end)
 
 local function ApplyTheme()
 	pcall(function()
@@ -740,6 +742,7 @@ local function CreateTab(name, iconId)
 	pageLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function() page.CanvasSize = UDim2.new(0, 0, 0, pageLayout.AbsoluteContentSize.Y + 20) end)
 
 	Pages[name] = page
+	tabButtons[name] = btn
 
 	local function activate()
 		for n, p in pairs(Pages) do p.Visible = (n == name) end
@@ -864,16 +867,14 @@ local function CreateToggle(page, text, default, callback)
 	local circle = Instance.new("Frame", pill)
 	circle.Size = UDim2.new(0, 16, 0, 16); circle.Position = state and UDim2.new(1, -19, 0.5, -8) or UDim2.new(0, 3, 0.5, -8)
 	circle.BackgroundColor3 = Color3.fromRGB(255, 255, 255); Instance.new("UICorner", circle).CornerRadius = UDim.new(1, 0)
-	btn.MouseButton1Click:Connect(function()
-		state = not state; pill:SetAttribute("ToggleState", state)
-		TweenService:Create(circle, TweenInfo.new(0.2), {Position = state and UDim2.new(1, -19, 0.5, -8) or UDim2.new(0, 3, 0.5, -8)}):Play()
-		ApplyTheme(); callback(state)
-	end)
-	return function(newState)
+	
+	local function setState(newState)
 		state = newState; pill:SetAttribute("ToggleState", state)
 		TweenService:Create(circle, TweenInfo.new(0.2), {Position = state and UDim2.new(1, -19, 0.5, -8) or UDim2.new(0, 3, 0.5, -8)}):Play()
 		ApplyTheme(); callback(state)
 	end
+	btn.MouseButton1Click:Connect(function() setState(not state) end)
+	return setState
 end
 
 local function CreateSlider(page, text, min, max, default, callback)
@@ -979,6 +980,36 @@ local function CreateButton(page, text, callback)
 	btn.MouseButton1Click:Connect(function() if callback then callback() end end)
 end
 
+-- Search Logic
+searchBox:GetPropertyChangedSignal("Text"):Connect(function()
+	local filter = string.lower(searchBox.Text)
+	if currentTab then
+		for _, section in ipairs(currentTab.page:GetChildren()) do
+			if section:GetAttribute("IsSection") then
+				local hasVisibleRow = false
+				local secBtn = section:FindFirstChildOfClass("TextButton")
+				local secTitleLabel = secBtn and secBtn:FindFirstChildOfClass("TextLabel")
+				local titleMatches = secTitleLabel and string.find(string.lower(secTitleLabel.Text), filter) ~= nil
+
+				for _, row in ipairs(section:GetDescendants()) do
+					if row:GetAttribute("IsRow") then
+						local label = row:FindFirstChildOfClass("TextLabel")
+						if label then
+							local rowMatches = string.find(string.lower(label.Text), filter) ~= nil
+							if filter == "" or titleMatches or rowMatches then
+								row.Visible = true; hasVisibleRow = true
+							else row.Visible = false end
+						end
+					end
+				end
+				section.Visible = filter == "" or titleMatches or hasVisibleRow
+			end
+		end
+		local pageLayout = currentTab.page:FindFirstChildOfClass("UIListLayout")
+		if pageLayout then currentTab.page.CanvasSize = UDim2.new(0, 0, 0, pageLayout.AbsoluteContentSize.Y + 20) end
+	end
+end)
+
 -- ==========================================
 -- 4. CONSTRUCTION DU HUB
 -- ==========================================
@@ -997,7 +1028,7 @@ local pgSettings = CreateTab("Settings", iconSettings)
 
 -- --- PAGE HOME ---
 local secWelcome = CreateSection(pgHome, "Welcome", true)
-local welcomeTxt = CreateParagraph(secWelcome, "Welcome to MxFlow menu, the new generation of script for roblox.\nCreated by two French Founders.")
+local welcomeTxt = CreateParagraph(secWelcome, "Welcome to MxFlow hub, the new generation of script for roblox.\nCreated by two French Founders.")
 task.spawn(function() while task.wait(1.5) do TweenService:Create(welcomeTxt, TweenInfo.new(1.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, 0, true), {TextTransparency = 0.5}):Play(); task.wait(1.5) end end)
 local secDiscord = CreateSection(pgHome, "Discord", true)
 CreateButton(secDiscord, "Copy Discord Link", function() if setclipboard then setclipboard("https://discord.gg/w3Dr9VzjS6") end end)
@@ -1082,32 +1113,47 @@ local secNPC = CreateSection(pgTp, "NPC Teleport", true)
 CreateDropdown(secNPC, "Select NPC", NpcNames, selectedNPC, function(v) selectedNPC = v end)
 CreateButton(secNPC, "Teleport to NPC", function() teleportToSpecificNPC(selectedNPC) end)
 
-local secPlayerTp = CreateSection(pgTp, "Player Teleport", true)
-local targetPlayerName = ""
-local playerNames = {}
-for _, p in ipairs(Players:GetPlayers()) do if p ~= player then table.insert(playerNames, p.Name) end end
-if #playerNames == 0 then table.insert(playerNames, "No Players") end
-local playerDropdown = CreateDropdown(secPlayerTp, "Select Player", playerNames, playerNames[1], function(v) targetPlayerName = v end)
+-- ✅ PLAYER TELEPORT & FOLLOW (SMART SEARCH)
+local secPlayerTp = CreateSection(pgTp, "Player Teleport & Follow", true)
+CreateInput(secPlayerTp, "Player Name", "Partial name or DisplayName", "", function(v) targetPlayerInputName = v end)
 
-CreateButton(secPlayerTp, "Refresh Players", function()
-	local newNames = {}
-	for _, p in ipairs(Players:GetPlayers()) do if p ~= player then table.insert(newNames, p.Name) end end
-	if #newNames == 0 then table.insert(newNames, "No Players") end
-	playerDropdown:Refresh(newNames)
-end)
-
-CreateButton(secPlayerTp, "Teleport to Player", function()
-	if targetPlayerName and targetPlayerName ~= "No Players" and targetPlayerName ~= "" then
-		local targetP = Players:FindFirstChild(targetPlayerName)
+CreateButton(secPlayerTp, "Teleport to Player (Once)", function()
+	local target = getTargetPlayer()
+	if target and target.Character and target.Character:FindFirstChild("HumanoidRootPart") then
 		local char = player.Character; local root = char and char:FindFirstChild("HumanoidRootPart"); local hum = char and char:FindFirstChild("Humanoid")
-		if targetP and targetP.Character and targetP.Character:FindFirstChild("HumanoidRootPart") and root and hum then
-			local targetCFrame = targetP.Character.HumanoidRootPart.CFrame * CFrame.new(0, 0, -3)
+		if root and hum then
+			local targetCFrame = target.Character.HumanoidRootPart.CFrame * CFrame.new(0, 0, -3)
 			local dist = (root.Position - targetCFrame.Position).Magnitude
 			local flyTime = dist / 110 
 			hum.PlatformStand = true
 			local tween = TweenService:Create(root, TweenInfo.new(flyTime, Enum.EasingStyle.Linear), {CFrame = targetCFrame})
 			tween:Play(); tween.Completed:Wait(); hum.PlatformStand = false
 		end
+	end
+end)
+
+followToggleFunc = CreateToggle(secPlayerTp, "Follow Player (Coller)", false, function(v)
+	isFollowingPlayer = v
+	if isFollowingPlayer then
+		local target = getTargetPlayer()
+		if target then
+			if followPlayerConnection then followPlayerConnection:Disconnect() end
+			followPlayerConnection = RunService.RenderStepped:Connect(function()
+				local char = player.Character; local root = char and char:FindFirstChild("HumanoidRootPart")
+				if target and target.Character and target.Character:FindFirstChild("HumanoidRootPart") and root then
+					root.CFrame = target.Character.HumanoidRootPart.CFrame * CFrame.new(0, 0, 0.1)
+				else
+					isFollowingPlayer = false
+					if followPlayerConnection then followPlayerConnection:Disconnect(); followPlayerConnection = nil end
+					if followToggleFunc then followToggleFunc(false) end
+				end
+			end)
+		else
+			isFollowingPlayer = false
+			if followToggleFunc then followToggleFunc(false) end
+		end
+	else
+		if followPlayerConnection then followPlayerConnection:Disconnect(); followPlayerConnection = nil end
 	end
 end)
 
@@ -1168,12 +1214,26 @@ local function ShowMainMenu()
 	ApplyTheme()
 	if tabFunctions["Home"] then tabFunctions["Home"]() end
 	mainFrame.Visible = true
-	print("MxFlow Menu Edition Loaded!")
+	print("MxF Hub The Ultimate Edition Loaded!")
 end
 
 if CurrentSettings.SavedKey ~= "" then
+	loadFrame.Visible = true
+	loadText.Text = "Auto-Logging in..."
+	TweenService:Create(barFill, TweenInfo.new(0.5, Enum.EasingStyle.Quad), {Size = UDim2.new(0.4, 0, 1, 0)}):Play()
+	task.wait(0.5)
+	
 	local isValid = VerifyKey(CurrentSettings.SavedKey)
-	if isValid then ShowMainMenu() else authFrame.Visible = true end
+	if isValid then 
+		TweenService:Create(barFill, TweenInfo.new(0.5, Enum.EasingStyle.Quad), {Size = UDim2.new(1, 0, 1, 0)}):Play()
+		loadText.Text = "Welcome back!"
+		task.wait(0.5)
+		loadFrame.Visible = false
+		ShowMainMenu() 
+	else 
+		loadFrame.Visible = false
+		authFrame.Visible = true 
+	end
 else
 	authFrame.Visible = true
 end
@@ -1182,19 +1242,29 @@ verifyBtn.MouseButton1Click:Connect(function()
 	local key = keyBox.Text
 	authFrame.Visible = false
 	loadFrame.Visible = true
+	loadText.Text = "Connecting to Server..."
+	barFill.Size = UDim2.new(0, 0, 1, 0)
 	
-	local tween = TweenService:Create(barFill, TweenInfo.new(1.5, Enum.EasingStyle.Sine), {Size = UDim2.new(1, 0, 1, 0)})
-	tween:Play()
+	TweenService:Create(barFill, TweenInfo.new(0.5, Enum.EasingStyle.Quad), {Size = UDim2.new(0.3, 0, 1, 0)}):Play()
+	task.wait(0.5)
 	
+	loadText.Text = "Verifying Key..."
 	local isValid, msg = VerifyKey(key)
-	tween.Completed:Wait()
 	
 	if isValid then
+		TweenService:Create(barFill, TweenInfo.new(0.5, Enum.EasingStyle.Quad), {Size = UDim2.new(0.7, 0, 1, 0)}):Play()
+		loadText.Text = "Key Validated! Loading UI..."
+		task.wait(0.5)
+		TweenService:Create(barFill, TweenInfo.new(0.5, Enum.EasingStyle.Quad), {Size = UDim2.new(1, 0, 1, 0)}):Play()
+		task.wait(0.5)
+		
 		CurrentSettings.SavedKey = key; SaveSettings()
 		loadFrame.Visible = false; ShowMainMenu()
 	else
+		TweenService:Create(barFill, TweenInfo.new(0.3, Enum.EasingStyle.Quad), {Size = UDim2.new(1, 0, 1, 0)}):Play()
+		ApplyTheme()
 		loadText.Text = "Error: " .. msg; loadText.TextColor3 = Color3.fromRGB(255, 50, 50)
-		task.wait(2)
+		task.wait(2.5)
 		barFill.Size = UDim2.new(0, 0, 1, 0); loadText.Text = "Authenticating..."
 		loadText.TextColor3 = Themes[CurrentSettings.Theme].Text or Color3.new(1,1,1)
 		loadFrame.Visible = false; authFrame.Visible = true
