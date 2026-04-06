@@ -1,6 +1,6 @@
 -- ======================================================
--- 👑 MxF HUB - SPEED HUB X EDITION (FINAL V33 - ULTIMATE)
--- Fixed UI Loading, Smart Boss Queue (5s), Giant Hitbox Aura
+-- 👑 MxF HUB - SPEED HUB X EDITION (FINAL V35 - ULTIMATE)
+-- Omnislash Annihilation Aura (0-Frame Blink Hit)
 -- ======================================================
 
 local Players = game:GetService("Players")
@@ -31,6 +31,7 @@ local CurrentSettings = {
 	Font = "Gotham",
 	Opacity = 0.85,
 	TextSizeOffset = 1,
+	MenuSize = 100,
 	SavedKey = ""
 }
 
@@ -108,7 +109,7 @@ for npcName, _ in pairs(NpcIslandMap) do table.insert(NpcNames, npcName) end
 local MobNames, BossNames, IslandNames = {}, {}, {}
 for m, i in pairs(MobDatabase) do table.insert(MobNames, m); if not table.find(IslandNames, i) then table.insert(IslandNames, i) end end
 for b, i in pairs(BossDatabase) do table.insert(BossNames, b); if not table.find(IslandNames, i) then table.insert(IslandNames, i) end end
-local ExtraIslands = {"Dungeon", "Boss", "Sailor", "Tower", "Desert", "SnowIsland"}
+local ExtraIslands = {"Dungeon", "Boss", "Sailor", "Tower", "Desert", "SnowIsland", "SoulDominion"}
 for _, island in ipairs(ExtraIslands) do if not table.find(IslandNames, island) then table.insert(IslandNames, island) end end
 
 table.sort(MobNames); table.sort(BossNames); table.sort(IslandNames); table.sort(NpcNames)
@@ -166,7 +167,8 @@ local followTargetName = ""
 local isFollowingPlayer = false
 local followConnection = nil
 local followToggleFunc = nil
-local lastBossTarget = nil -- Mémoire pour le délai du Boss
+local lastBossTarget = nil
+local tabFunctions = {} 
 
 -- ==========================================
 -- 2. BACK-END LOGIC
@@ -276,7 +278,6 @@ local function startCombatLoop()
 			if char and char:FindFirstChild("HumanoidRootPart") then
 				local root = char.HumanoidRootPart; local hum = char.Humanoid
 				
-				-- Auto-Equip Arme si perdu au respawn
 				pcall(function()
 					if not char:FindFirstChildOfClass("Tool") then
 						local tool = player.Backpack:FindFirstChildOfClass("Tool")
@@ -312,7 +313,6 @@ local function startCombatLoop()
 					currentTarget = target
 					
 					if target and target:FindFirstChild("HumanoidRootPart") and target:FindFirstChild("Humanoid") and target.Humanoid.Health > 0 then
-						-- Combat Boss
 						if autoFarmSummonBossEnabled then lastBossTarget = target end
 						isOnRightIsland = true 
 						local tpPos = target.HumanoidRootPart.Position + Vector3.new(0, mobHeight, 0)
@@ -330,14 +330,11 @@ local function startCombatLoop()
 					else 
 						float.MaxForce = Vector3.new(100000, 100000, 100000)
 						
-						-- ✅ SMART SUMMON BOSS QUEUE (5s DELAY AFTER DEATH)
 						if autoFarmSummonBossEnabled then
 							if lastBossTarget then
-								-- Le boss vient de mourir !
 								lastBossTarget = nil
-								task.wait(5) -- Attente stricte de 5 secondes
+								task.wait(5) 
 							elseif currentSummonCount < summonBossAmount then
-								-- Invoquer un nouveau boss
 								pcall(function()
 									local rs = game:GetService("ReplicatedStorage")
 									local conf = SummonBossConfig[selectedSummonBoss]
@@ -353,9 +350,8 @@ local function startCombatLoop()
 									end
 								end)
 								currentSummonCount = currentSummonCount + 1
-								task.wait(5) -- Temps de répit pour le spawn physique
+								task.wait(5) 
 							else
-								-- Fin du farm de boss
 								autoFarmSummonBossEnabled = false; currentSummonCount = 0
 								if autoFarmSummonToggleFunc then autoFarmSummonToggleFunc(false) end
 							end
@@ -366,36 +362,66 @@ local function startCombatLoop()
 						end
 					end
 					
+				-- ✅ OMNISLASH ANNIHILATION AURA
 				elseif killauraEnabled then
 					float.MaxForce = Vector3.new(0, 0, 0)
 					if not flyEnabled then hum.PlatformStand = false end
 					
-					-- ✅ KILLAURA LONG RANGE (GIANT HITBOX SIZE)
-					local target, dist = getTarget(selectedMob, true)
-					currentTarget = target
-					if target and target:FindFirstChild("HumanoidRootPart") then
-						local targetRoot = target.HumanoidRootPart
-						root.CFrame = CFrame.lookAt(root.Position, Vector3.new(targetRoot.Position.X, root.Position.Y, targetRoot.Position.Z))
-						
-						local currentTool = char:FindFirstChildOfClass("Tool")
-						if not currentTool then
-							local tool = player.Backpack:FindFirstChildOfClass("Tool")
-							if tool then hum:EquipTool(tool) end
-							currentTool = tool
-						end
+					local myPos = root.Position
+					local originalCFrame = root.CFrame
+					local npcs = workspace:FindFirstChild("NPCs")
+					local hitAny = false
+					
+					local currentTool = char:FindFirstChildOfClass("Tool")
+					if not currentTool then
+						local tool = player.Backpack:FindFirstChildOfClass("Tool")
+						if tool then hum:EquipTool(tool) end
+						currentTool = tool
+					end
 
-						if currentTool then
-							for _, part in ipairs(currentTool:GetDescendants()) do
-								if part:IsA("BasePart") and (part.Name == "Hitbox" or part.Name == "Handle" or string.find(string.lower(part.Name), "blade")) then
-									part.Massless = true
-									part.CanCollide = false
-									part.Transparency = 1
-									part.Size = Vector3.new(combatRadius, combatRadius, combatRadius)
+					if npcs and currentTool then
+						local handle = currentTool:FindFirstChild("Hitbox") or currentTool:FindFirstChild("Handle") or currentTool:FindFirstChild("Blade")
+						
+						for _, obj in ipairs(npcs:GetDescendants()) do
+							if obj:IsA("Model") and not string.find(string.lower(obj.Name), "quest") then
+								local tName = selectedMob
+								local match = false
+								if tName and string.sub(obj.Name, 1, #tName) == tName then
+									match = not (tName == "Thief" and string.find(obj.Name, "Boss"))
+								end
+
+								if match then
+									local tHum = obj:FindFirstChild("Humanoid")
+									local tRoot = obj:FindFirstChild("HumanoidRootPart")
+									if tHum and tHum.Health > 0 and tRoot then
+										local dist = (tRoot.Position - myPos).Magnitude
+										if dist <= combatRadius then
+											hitAny = true
+											currentTarget = obj 
+											
+											-- BLINK INSTANTANÉ (Contourne la magnitude serveur)
+											root.CFrame = tRoot.CFrame * CFrame.new(0, 0, 2)
+											pcall(function() hitRemote:FireServer() end)
+											
+											-- TOUCHER FORCÉ (Executor level)
+											if firetouchinterest and handle then
+												pcall(function()
+													firetouchinterest(handle, tRoot, 0)
+													firetouchinterest(handle, tRoot, 1)
+												end)
+											end
+										end
+									end
 								end
 							end
 						end
-						pcall(function() hitRemote:FireServer() end)
-						VIM:SendMouseButtonEvent(0, 0, 0, true, game, 0); task.wait(0.02); VIM:SendMouseButtonEvent(0, 0, 0, false, game, 0)
+					end
+					
+					if hitAny then
+						root.CFrame = originalCFrame -- Retour invisible à l'oeil nu
+						VIM:SendMouseButtonEvent(0, 0, 0, true, game, 0)
+						task.wait(0.02)
+						VIM:SendMouseButtonEvent(0, 0, 0, false, game, 0)
 					end
 				end
 			end
@@ -525,9 +551,8 @@ player.CharacterAdded:Connect(function()
 end)
 
 -- ==========================================
--- 3. MOTEUR UI & KEY SYSTEM (API PYTHON FIX)
+-- 3. MOTEUR UI & KEY SYSTEM
 -- ==========================================
-
 local requestFunc = request or http_request or (http and http.request) or syn and syn.request
 local hwid = ""
 pcall(function()
@@ -628,7 +653,6 @@ versionLbl.Text = "V.1.0.0 | © MxFlow created by MxF Studio, All rights reserve
 versionLbl.TextXAlignment = Enum.TextXAlignment.Right
 versionLbl:SetAttribute("TextRole", "TextDim"); versionLbl:SetAttribute("BaseTextSize", 11)
 
--- KEY SYSTEM & LOADING UI (V29 STYLE)
 local authFrame = Instance.new("Frame", screenGui)
 authFrame.Size = UDim2.new(0, 350, 0, 250); authFrame.Position = UDim2.new(0.5, -175, 0.5, -125)
 authFrame:SetAttribute("BgRole", "Main"); Instance.new("UICorner", authFrame).CornerRadius = UDim.new(0, 10)
@@ -683,7 +707,9 @@ local function ApplyTheme()
 		local f = Fonts[CurrentSettings.Font] or Fonts["Gotham"]
 		local offset = tonumber(CurrentSettings.TextSizeOffset) or 1
 		local opacity = tonumber(CurrentSettings.Opacity) or 0.85
+		local scale = (tonumber(CurrentSettings.MenuSize) or 100) / 100
 
+		mainFrame.Size = UDim2.new(0, 760 * scale, 0, 520 * scale)
 		mainFrame.BackgroundTransparency = 1 - opacity
 		sidebar.BackgroundTransparency = 1 - opacity
 		authFrame.BackgroundTransparency = 1 - opacity
@@ -693,7 +719,7 @@ local function ApplyTheme()
 			if obj:IsA("TextLabel") or obj:IsA("TextButton") or obj:IsA("TextBox") then
 				obj.Font = f
 				local bSize = obj:GetAttribute("BaseTextSize")
-				if bSize then obj.TextSize = tonumber(bSize) + offset end
+				if bSize then obj.TextSize = (tonumber(bSize) + offset) * scale end
 			end
 
 			if obj:IsA("GuiObject") then
@@ -725,8 +751,6 @@ end
 -- UI FACTORY
 local Pages = {}
 local currentTab = nil
-
--- ✅ LA TABLE TABFUNCTIONS EST BIEN DÉCLARÉE ICI
 local tabFunctions = {} 
 
 local function CreateTab(name, iconId)
@@ -1105,7 +1129,7 @@ CreateSlider(secFarmSet, "Distance From Target (Height)", 0, 30, 8, function(v) 
 
 -- --- PAGE SELF ---
 local secAura = CreateSection(pgSelf, "Combat Assist (Aura)", true)
-CreateToggle(secAura, "KillAura Long Range", false, function(v) killauraEnabled = v; if v then autoFarmMob, autoFarmBoss, autoFarmTower = false, false, false; startCombatLoop() end end)
+CreateToggle(secAura, "KillAura Omnislash (Range)", false, function(v) killauraEnabled = v; if v then autoFarmMob, autoFarmBoss, autoFarmTower = false, false, false; startCombatLoop() end end)
 CreateSlider(secAura, "Aura Range (Studs)", 10, 1000, 500, function(v) combatRadius = v end)
 
 local secPlayer = CreateSection(pgSelf, "Local Player", false)
@@ -1169,10 +1193,9 @@ CreateButton(secShop, "Buy Once", function() pcall(function() game:GetService("R
 local secTheme = CreateSection(pgSettingsUI, "Theme", true)
 CreateDropdown(secTheme, "Select Theme", ThemeNames, CurrentSettings.Theme, function(v) CurrentSettings.Theme = v; SaveSettings(); ApplyTheme() end)
 
-local secBg = CreateSection(pgSettingsUI, "Background UI", true)
-CreateSlider(secBg, "Menu Opacity", 10, 100, CurrentSettings.Opacity * 100, function(v) CurrentSettings.Opacity = v/100; SaveSettings(); ApplyTheme() end)
-
 local secCustom = CreateSection(pgSettingsUI, "Custom UI", true)
+CreateSlider(secCustom, "Menu Size (%)", 70, 150, tonumber(CurrentSettings.MenuSize) or 100, function(v) CurrentSettings.MenuSize = v; SaveSettings(); ApplyTheme() end)
+CreateSlider(secCustom, "Menu Opacity", 10, 100, CurrentSettings.Opacity * 100, function(v) CurrentSettings.Opacity = v/100; SaveSettings(); ApplyTheme() end)
 CreateDropdown(secCustom, "Select Font", FontNames, CurrentSettings.Font, function(v) CurrentSettings.Font = v; SaveSettings(); ApplyTheme() end)
 CreateSlider(secCustom, "Text Size Offset", -2, 6, tonumber(CurrentSettings.TextSizeOffset) or 1, function(v) CurrentSettings.TextSizeOffset = v; SaveSettings(); ApplyTheme() end)
 
