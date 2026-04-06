@@ -1,6 +1,6 @@
 -- ======================================================
--- 👑 MxF HUB - SPEED HUB X EDITION (FINAL V31 - ULTIMATE)
--- Reverted Loading UI, Follow Player Logic Kept
+-- 👑 MxF HUB - SPEED HUB X EDITION (FINAL V32 - ULTIMATE)
+-- Fixed 'Home' Nil Error, Clean Code Structure
 -- ======================================================
 
 local Players = game:GetService("Players")
@@ -70,6 +70,7 @@ LoadSettings()
 
 local UIConfig = { WindowSize = UDim2.new(0, 760, 0, 520), ToggleKey = Enum.KeyCode.Insert }
 
+-- DATABASES
 local MobDatabase = {
 	["AcademyTeacher"] = "Academy", ["ArenaFighter"] = "Lawless", ["Curse"] = "Shinjuku",
 	["DesertBandit"] = "Desert", ["FrostRogue"] = "Snow", ["Hollow"] = "HollowIsland",
@@ -108,7 +109,7 @@ for npcName, _ in pairs(NpcIslandMap) do table.insert(NpcNames, npcName) end
 local MobNames, BossNames, IslandNames = {}, {}, {}
 for m, i in pairs(MobDatabase) do table.insert(MobNames, m); if not table.find(IslandNames, i) then table.insert(IslandNames, i) end end
 for b, i in pairs(BossDatabase) do table.insert(BossNames, b); if not table.find(IslandNames, i) then table.insert(IslandNames, i) end end
-local ExtraIslands = {"Dungeon", "Boss", "Sailor", "Tower", "Desert", "SnowIsland"}
+local ExtraIslands = {"Dungeon", "Boss", "Sailor", "Tower", "Desert", "SnowIsland", "SoulDominion"}
 for _, island in ipairs(ExtraIslands) do if not table.find(IslandNames, island) then table.insert(IslandNames, island) end end
 
 table.sort(MobNames); table.sort(BossNames); table.sort(IslandNames); table.sort(NpcNames)
@@ -160,7 +161,12 @@ local flyEnabled, flySpeedValue = false, 50
 local infJumpEnabled, noClipEnabled = false, false
 local bodyVelocity, bodyGyro, speedConn, flyConn, noClipConn
 local isBindingAny = false
-local tabFunctions = {} 
+
+-- FOLLOW PLAYER VARS
+local followTargetName = ""
+local isFollowingPlayer = false
+local followConnection = nil
+local followToggleFunc = nil
 
 -- ==========================================
 -- 2. BACK-END LOGIC
@@ -190,19 +196,26 @@ local function teleportToSpecificNPC(npcName)
 	local targetIsland = NpcIslandMap[npcName] or "Starter"
 	teleportToIsland(targetIsland)
 	task.wait(0.5) 
+	
 	pcall(function()
 		local npc = workspace:FindFirstChild("ServiceNPCs") and workspace.ServiceNPCs:FindFirstChild(npcName)
 		local char = player.Character
 		local root = char and char:FindFirstChild("HumanoidRootPart")
 		local hum = char and char:FindFirstChild("Humanoid")
+		
 		if npc and npc:FindFirstChild("HumanoidRootPart") and root and hum then
 			local targetCFrame = npc.HumanoidRootPart.CFrame * CFrame.new(0, 0, -4)
 			local dist = (root.Position - targetCFrame.Position).Magnitude
 			local flyTime = dist / 110 
+			
 			hum.PlatformStand = true
 			local tween = TweenService:Create(root, TweenInfo.new(flyTime, Enum.EasingStyle.Linear), {CFrame = targetCFrame})
-			tween:Play(); tween.Completed:Wait(); hum.PlatformStand = false
-		else print("Error: NPC " .. npcName .. " not found on " .. targetIsland) end
+			tween:Play()
+			tween.Completed:Wait()
+			hum.PlatformStand = false
+		else 
+			print("Error: NPC " .. npcName .. " not found on " .. targetIsland) 
+		end
 	end)
 end
 
@@ -235,6 +248,7 @@ local function getTarget(targetName, isSpecific)
 			end
 		end
 	end
+	
 	if targetPlayers and targetName ~= "NearestTower" then
 		for _, p in ipairs(Players:GetPlayers()) do
 			if p ~= player and p.Character then
@@ -247,7 +261,19 @@ local function getTarget(targetName, isSpecific)
 			end
 		end
 	end
+	
 	return closest, minDist
+end
+
+local function findTargetPlayer(name)
+	if not name or name == "" then return nil end
+	name = name:lower()
+	for _, p in ipairs(Players:GetPlayers()) do
+		if p ~= player and (p.Name:lower():sub(1, #name) == name or p.DisplayName:lower():sub(1, #name) == name) then
+			return p
+		end
+	end
+	return nil
 end
 
 local function startCombatLoop()
@@ -267,6 +293,7 @@ local function startCombatLoop()
 				
 				if autoFarmMob or autoFarmBoss or autoFarmTower or autoFarmSummonBossEnabled then
 					hum.PlatformStand = true
+					
 					local tName, island
 					if autoFarmSummonBossEnabled then
 						local conf = SummonBossConfig[selectedSummonBoss]
@@ -302,6 +329,7 @@ local function startCombatLoop()
 						end
 					else 
 						float.MaxForce = Vector3.new(100000, 100000, 100000)
+						
 						if autoFarmSummonBossEnabled then
 							if currentSummonCount < summonBossAmount then
 								pcall(function()
@@ -337,6 +365,7 @@ local function startCombatLoop()
 					
 					local target, dist = getTarget(selectedMob, true)
 					currentTarget = target
+					
 					if target and target:FindFirstChild("HumanoidRootPart") then
 						local targetRoot = target.HumanoidRootPart
 						root.CFrame = CFrame.lookAt(root.Position, Vector3.new(targetRoot.Position.X, root.Position.Y, targetRoot.Position.Z))
@@ -357,8 +386,11 @@ local function startCombatLoop()
 								end
 							end
 						end
+						
 						pcall(function() hitRemote:FireServer() end)
-						VIM:SendMouseButtonEvent(0, 0, 0, true, game, 0); task.wait(0.02); VIM:SendMouseButtonEvent(0, 0, 0, false, game, 0)
+						VIM:SendMouseButtonEvent(0, 0, 0, true, game, 0)
+						task.wait(0.02)
+						VIM:SendMouseButtonEvent(0, 0, 0, false, game, 0)
 					end
 				end
 			end
@@ -401,8 +433,13 @@ local function startAutoChestLoop()
 		while autoChestEnabled do
 			pcall(function()
 				if selectedChestType == "All" then
-					for _, chest in ipairs(allChests) do remote:FireServer("Use", chest, tonumber(chestAmountToOpen) or 1, false); task.wait(0.4) end
-				else remote:FireServer("Use", selectedChestType, tonumber(chestAmountToOpen) or 1, false) end
+					for _, chest in ipairs(allChests) do 
+						remote:FireServer("Use", chest, tonumber(chestAmountToOpen) or 1, false)
+						task.wait(0.4) 
+					end
+				else 
+					remote:FireServer("Use", selectedChestType, tonumber(chestAmountToOpen) or 1, false) 
+				end
 			end)
 			task.wait(1.5)
 		end
@@ -472,23 +509,6 @@ local function toggleFly()
 	end)
 end
 
--- LOGIQUE FOLLOW PLAYER
-local followTargetName = ""
-local isFollowingPlayer = false
-local followConnection = nil
-local followToggleFunc = nil
-
-local function findTargetPlayer(name)
-	if not name or name == "" then return nil end
-	name = name:lower()
-	for _, p in ipairs(Players:GetPlayers()) do
-		if p ~= player and (p.Name:lower():sub(1, #name) == name or p.DisplayName:lower():sub(1, #name) == name) then
-			return p
-		end
-	end
-	return nil
-end
-
 player.CharacterAdded:Connect(function()
 	if flyConn then flyConn:Disconnect() flyConn = nil end
 	task.wait(0.5)
@@ -505,9 +525,8 @@ player.CharacterAdded:Connect(function()
 end)
 
 -- ==========================================
--- 3. MOTEUR UI & KEY SYSTEM (API PYTHON FIX)
+-- 3. MOTEUR UI & KEY SYSTEM
 -- ==========================================
-
 local requestFunc = request or http_request or (http and http.request) or syn and syn.request
 local hwid = ""
 pcall(function()
@@ -608,8 +627,6 @@ versionLbl.Text = "V.1.0.0 | © MxFlow created by MxF Studio, All rights reserve
 versionLbl.TextXAlignment = Enum.TextXAlignment.Right
 versionLbl:SetAttribute("TextRole", "TextDim"); versionLbl:SetAttribute("BaseTextSize", 11)
 
-
--- KEY SYSTEM & LOADING UI (REVERTED TO V29)
 local authFrame = Instance.new("Frame", screenGui)
 authFrame.Size = UDim2.new(0, 350, 0, 250); authFrame.Position = UDim2.new(0.5, -175, 0.5, -125)
 authFrame:SetAttribute("BgRole", "Main"); Instance.new("UICorner", authFrame).CornerRadius = UDim.new(0, 10)
@@ -706,6 +723,7 @@ end
 -- UI FACTORY
 local Pages = {}
 local currentTab = nil
+local tabFunctions = {} 
 
 local function CreateTab(name, iconId)
 	local btn = Instance.new("TextButton", navList)
@@ -728,8 +746,7 @@ local function CreateTab(name, iconId)
 	pageLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function() page.CanvasSize = UDim2.new(0, 0, 0, pageLayout.AbsoluteContentSize.Y + 20) end)
 
 	Pages[name] = page
-	tabButtons[name] = btn
-
+	
 	local function activate()
 		for n, p in pairs(Pages) do p.Visible = (n == name) end
 		if currentTab then 
