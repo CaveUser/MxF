@@ -1,5 +1,6 @@
 -- ======================================================
--- 👑 MxF HUB 
+-- 👑 MxF HUB - SPEED HUB X EDITION (FINAL V30 - ULTIMATE)
+-- Dynamic Follow Player Logic integrated
 -- ======================================================
 
 local Players = game:GetService("Players")
@@ -107,7 +108,7 @@ for npcName, _ in pairs(NpcIslandMap) do table.insert(NpcNames, npcName) end
 local MobNames, BossNames, IslandNames = {}, {}, {}
 for m, i in pairs(MobDatabase) do table.insert(MobNames, m); if not table.find(IslandNames, i) then table.insert(IslandNames, i) end end
 for b, i in pairs(BossDatabase) do table.insert(BossNames, b); if not table.find(IslandNames, i) then table.insert(IslandNames, i) end end
-local ExtraIslands = {"Dungeon", "Boss", "Sailor", "Tower", "Desert", "SnowIsland", "SoulDominion"}
+local ExtraIslands = {"Dungeon", "Boss", "Sailor", "Tower", "Desert", "SnowIsland"}
 for _, island in ipairs(ExtraIslands) do if not table.find(IslandNames, island) then table.insert(IslandNames, island) end end
 
 table.sort(MobNames); table.sort(BossNames); table.sort(IslandNames); table.sort(NpcNames)
@@ -160,12 +161,6 @@ local infJumpEnabled, noClipEnabled = false, false
 local bodyVelocity, bodyGyro, speedConn, flyConn, noClipConn
 local isBindingAny = false
 local tabFunctions = {} 
-
--- Variables Player Follow
-local targetPlayerInputName = ""
-local isFollowingPlayer = false
-local followPlayerConnection = nil
-local followToggleFunc = nil
 
 -- ==========================================
 -- 2. BACK-END LOGIC
@@ -243,18 +238,6 @@ local function getTarget(targetName, isSpecific)
 	return closest, minDist
 end
 
--- ✅ FONCTION RECHERCHE JOUEUR (Nom ou DisplayName)
-local function getTargetPlayer()
-	if targetPlayerInputName == "" then return nil end
-	local nameSearch = string.lower(targetPlayerInputName)
-	for _, p in ipairs(Players:GetPlayers()) do
-		if p ~= player and (string.sub(string.lower(p.Name), 1, #nameSearch) == nameSearch or string.sub(string.lower(p.DisplayName), 1, #nameSearch) == nameSearch) then
-			return p
-		end
-	end
-	return nil
-end
-
 local function startCombatLoop()
 	if combatCoroutine then task.cancel(combatCoroutine) end
 	combatCoroutine = task.spawn(function()
@@ -272,7 +255,6 @@ local function startCombatLoop()
 				
 				if autoFarmMob or autoFarmBoss or autoFarmTower or autoFarmSummonBossEnabled then
 					hum.PlatformStand = true
-					
 					local tName, island
 					if autoFarmSummonBossEnabled then
 						local conf = SummonBossConfig[selectedSummonBoss]
@@ -308,7 +290,6 @@ local function startCombatLoop()
 						end
 					else 
 						float.MaxForce = Vector3.new(100000, 100000, 100000)
-						
 						if autoFarmSummonBossEnabled then
 							if currentSummonCount < summonBossAmount then
 								pcall(function()
@@ -344,7 +325,6 @@ local function startCombatLoop()
 					
 					local target, dist = getTarget(selectedMob, true)
 					currentTarget = target
-					
 					if target and target:FindFirstChild("HumanoidRootPart") then
 						local targetRoot = target.HumanoidRootPart
 						root.CFrame = CFrame.lookAt(root.Position, Vector3.new(targetRoot.Position.X, root.Position.Y, targetRoot.Position.Z))
@@ -365,11 +345,8 @@ local function startCombatLoop()
 								end
 							end
 						end
-						
 						pcall(function() hitRemote:FireServer() end)
-						VIM:SendMouseButtonEvent(0, 0, 0, true, game, 0)
-						task.wait(0.02)
-						VIM:SendMouseButtonEvent(0, 0, 0, false, game, 0)
+						VIM:SendMouseButtonEvent(0, 0, 0, true, game, 0); task.wait(0.02); VIM:SendMouseButtonEvent(0, 0, 0, false, game, 0)
 					end
 				end
 			end
@@ -412,13 +389,8 @@ local function startAutoChestLoop()
 		while autoChestEnabled do
 			pcall(function()
 				if selectedChestType == "All" then
-					for _, chest in ipairs(allChests) do 
-						remote:FireServer("Use", chest, tonumber(chestAmountToOpen) or 1, false)
-						task.wait(0.4) 
-					end
-				else 
-					remote:FireServer("Use", selectedChestType, tonumber(chestAmountToOpen) or 1, false) 
-				end
+					for _, chest in ipairs(allChests) do remote:FireServer("Use", chest, tonumber(chestAmountToOpen) or 1, false); task.wait(0.4) end
+				else remote:FireServer("Use", selectedChestType, tonumber(chestAmountToOpen) or 1, false) end
 			end)
 			task.wait(1.5)
 		end
@@ -488,6 +460,25 @@ local function toggleFly()
 	end)
 end
 
+-- ==========================================
+-- LOGIQUE PLAYER FOLLOW INTEGREE
+-- ==========================================
+local followTargetName = ""
+local isFollowingPlayer = false
+local followConnection = nil
+local followToggleFunc = nil
+
+local function findTargetPlayer(name)
+	if not name or name == "" then return nil end
+	name = name:lower()
+	for _, p in ipairs(Players:GetPlayers()) do
+		if p ~= player and (p.Name:lower():sub(1, #name) == name or p.DisplayName:lower():sub(1, #name) == name) then
+			return p
+		end
+	end
+	return nil
+end
+
 player.CharacterAdded:Connect(function()
 	if flyConn then flyConn:Disconnect() flyConn = nil end
 	task.wait(0.5)
@@ -496,17 +487,16 @@ player.CharacterAdded:Connect(function()
 	if flyEnabled then toggleFly() end
 	if autoFarmMob or autoFarmBoss or autoFarmTower or autoFarmSummonBossEnabled or killauraEnabled then startCombatLoop() end
 	
-	-- Stop Follow à la mort
+	-- Stop Follow Player on Respawn
 	if isFollowingPlayer then
 		isFollowingPlayer = false
-		if followPlayerConnection then followPlayerConnection:Disconnect() followPlayerConnection = nil end
+		if followConnection then followConnection:Disconnect(); followConnection = nil end
 		if followToggleFunc then followToggleFunc(false) end
 	end
 end)
 
-
 -- ==========================================
--- 3. MOTEUR UI & KEY SYSTEM
+-- 3. MOTEUR UI & KEY SYSTEM (API PYTHON FIX)
 -- ==========================================
 
 local requestFunc = request or http_request or (http and http.request) or syn and syn.request
@@ -609,10 +599,12 @@ versionLbl.Text = "V.1.0.0 | © MxFlow created by MxF Studio, All rights reserve
 versionLbl.TextXAlignment = Enum.TextXAlignment.Right
 versionLbl:SetAttribute("TextRole", "TextDim"); versionLbl:SetAttribute("BaseTextSize", 11)
 
+-- KEY SYSTEM & LOADING UI
 local authFrame = Instance.new("Frame", screenGui)
 authFrame.Size = UDim2.new(0, 350, 0, 250); authFrame.Position = UDim2.new(0.5, -175, 0.5, -125)
 authFrame:SetAttribute("BgRole", "Main"); Instance.new("UICorner", authFrame).CornerRadius = UDim.new(0, 10)
-Instance.new("UIStroke", authFrame):SetAttribute("StrokeRole", "Stroke"); authFrame.Visible = false
+Instance.new("UIStroke", authFrame):SetAttribute("StrokeRole", "Stroke")
+authFrame.Visible = false
 
 local authTitle = Instance.new("TextLabel", authFrame)
 authTitle.Size = UDim2.new(1, 0, 0, 50); authTitle.Position = UDim2.new(0, 0, 0, 20); authTitle.BackgroundTransparency = 1
@@ -643,7 +635,8 @@ getBtn.MouseButton1Click:Connect(function() if setclipboard then setclipboard("h
 local loadFrame = Instance.new("Frame", screenGui)
 loadFrame.Size = UDim2.new(0, 350, 0, 140); loadFrame.Position = UDim2.new(0.5, -175, 0.5, -70)
 loadFrame:SetAttribute("BgRole", "Main"); Instance.new("UICorner", loadFrame).CornerRadius = UDim.new(0, 10)
-Instance.new("UIStroke", loadFrame):SetAttribute("StrokeRole", "Stroke"); loadFrame.Visible = false
+Instance.new("UIStroke", loadFrame):SetAttribute("StrokeRole", "Stroke")
+loadFrame.Visible = false
 
 local loadLogo = Instance.new("ImageLabel", loadFrame)
 loadLogo.Size = UDim2.new(0, 40, 0, 40); loadLogo.Position = UDim2.new(0.5, -20, 0, 15)
@@ -868,13 +861,17 @@ local function CreateToggle(page, text, default, callback)
 	circle.Size = UDim2.new(0, 16, 0, 16); circle.Position = state and UDim2.new(1, -19, 0.5, -8) or UDim2.new(0, 3, 0.5, -8)
 	circle.BackgroundColor3 = Color3.fromRGB(255, 255, 255); Instance.new("UICorner", circle).CornerRadius = UDim.new(1, 0)
 	
-	local function setState(newState)
-		state = newState; pill:SetAttribute("ToggleState", state)
+	btn.MouseButton1Click:Connect(function()
+		state = not state; pill:SetAttribute("ToggleState", state)
 		TweenService:Create(circle, TweenInfo.new(0.2), {Position = state and UDim2.new(1, -19, 0.5, -8) or UDim2.new(0, 3, 0.5, -8)}):Play()
 		ApplyTheme(); callback(state)
+	end)
+	
+	return function(newState)
+		state = newState; pill:SetAttribute("ToggleState", state)
+		TweenService:Create(circle, TweenInfo.new(0.2), {Position = state and UDim2.new(1, -19, 0.5, -8) or UDim2.new(0, 3, 0.5, -8)}):Play()
+		ApplyTheme()
 	end
-	btn.MouseButton1Click:Connect(function() setState(not state) end)
-	return setState
 end
 
 local function CreateSlider(page, text, min, max, default, callback)
@@ -998,13 +995,16 @@ searchBox:GetPropertyChangedSignal("Text"):Connect(function()
 							local rowMatches = string.find(string.lower(label.Text), filter) ~= nil
 							if filter == "" or titleMatches or rowMatches then
 								row.Visible = true; hasVisibleRow = true
-							else row.Visible = false end
+							else
+								row.Visible = false
+							end
 						end
 					end
 				end
 				section.Visible = filter == "" or titleMatches or hasVisibleRow
 			end
 		end
+		
 		local pageLayout = currentTab.page:FindFirstChildOfClass("UIListLayout")
 		if pageLayout then currentTab.page.CanvasSize = UDim2.new(0, 0, 0, pageLayout.AbsoluteContentSize.Y + 20) end
 	end
@@ -1028,7 +1028,7 @@ local pgSettings = CreateTab("Settings", iconSettings)
 
 -- --- PAGE HOME ---
 local secWelcome = CreateSection(pgHome, "Welcome", true)
-local welcomeTxt = CreateParagraph(secWelcome, "Welcome to MxFlow hub, the new generation of script for roblox.\nCreated by two French Founders.")
+local welcomeTxt = CreateParagraph(secWelcome, "Welcome to MxFlow hub, the new generation of script for roblox.\nCreated by two French Founders, all rights to this menu are reserved.")
 task.spawn(function() while task.wait(1.5) do TweenService:Create(welcomeTxt, TweenInfo.new(1.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, 0, true), {TextTransparency = 0.5}):Play(); task.wait(1.5) end end)
 local secDiscord = CreateSection(pgHome, "Discord", true)
 CreateButton(secDiscord, "Copy Discord Link", function() if setclipboard then setclipboard("https://discord.gg/w3Dr9VzjS6") end end)
@@ -1113,38 +1113,24 @@ local secNPC = CreateSection(pgTp, "NPC Teleport", true)
 CreateDropdown(secNPC, "Select NPC", NpcNames, selectedNPC, function(v) selectedNPC = v end)
 CreateButton(secNPC, "Teleport to NPC", function() teleportToSpecificNPC(selectedNPC) end)
 
--- ✅ PLAYER TELEPORT & FOLLOW (SMART SEARCH)
 local secPlayerTp = CreateSection(pgTp, "Player Teleport & Follow", true)
-CreateInput(secPlayerTp, "Player Name", "Partial name or DisplayName", "", function(v) targetPlayerInputName = v end)
-
-CreateButton(secPlayerTp, "Teleport to Player (Once)", function()
-	local target = getTargetPlayer()
-	if target and target.Character and target.Character:FindFirstChild("HumanoidRootPart") then
-		local char = player.Character; local root = char and char:FindFirstChild("HumanoidRootPart"); local hum = char and char:FindFirstChild("Humanoid")
-		if root and hum then
-			local targetCFrame = target.Character.HumanoidRootPart.CFrame * CFrame.new(0, 0, -3)
-			local dist = (root.Position - targetCFrame.Position).Magnitude
-			local flyTime = dist / 110 
-			hum.PlatformStand = true
-			local tween = TweenService:Create(root, TweenInfo.new(flyTime, Enum.EasingStyle.Linear), {CFrame = targetCFrame})
-			tween:Play(); tween.Completed:Wait(); hum.PlatformStand = false
-		end
-	end
-end)
-
-followToggleFunc = CreateToggle(secPlayerTp, "Follow Player (Coller)", false, function(v)
+CreateInput(secPlayerTp, "Player Name", "Enter name...", followTargetName, function(v) followTargetName = v end)
+followToggleFunc = CreateToggle(secPlayerTp, "Follow Player", false, function(v)
 	isFollowingPlayer = v
-	if isFollowingPlayer then
-		local target = getTargetPlayer()
+	if v then
+		local target = findTargetPlayer(followTargetName)
 		if target then
-			if followPlayerConnection then followPlayerConnection:Disconnect() end
-			followPlayerConnection = RunService.RenderStepped:Connect(function()
-				local char = player.Character; local root = char and char:FindFirstChild("HumanoidRootPart")
-				if target and target.Character and target.Character:FindFirstChild("HumanoidRootPart") and root then
-					root.CFrame = target.Character.HumanoidRootPart.CFrame * CFrame.new(0, 0, 0.1)
+			followConnection = RunService.RenderStepped:Connect(function()
+				local char = player.Character
+				local hrp = char and char:FindFirstChild("HumanoidRootPart")
+				local tChar = target.Character
+				local tHrp = tChar and tChar:FindFirstChild("HumanoidRootPart")
+				
+				if hrp and tHrp then
+					hrp.CFrame = tHrp.CFrame * CFrame.new(0, 0, 0.1)
 				else
 					isFollowingPlayer = false
-					if followPlayerConnection then followPlayerConnection:Disconnect(); followPlayerConnection = nil end
+					if followConnection then followConnection:Disconnect(); followConnection = nil end
 					if followToggleFunc then followToggleFunc(false) end
 				end
 			end)
@@ -1153,7 +1139,7 @@ followToggleFunc = CreateToggle(secPlayerTp, "Follow Player (Coller)", false, fu
 			if followToggleFunc then followToggleFunc(false) end
 		end
 	else
-		if followPlayerConnection then followPlayerConnection:Disconnect(); followPlayerConnection = nil end
+		if followConnection then followConnection:Disconnect(); followConnection = nil end
 	end
 end)
 
@@ -1214,7 +1200,7 @@ local function ShowMainMenu()
 	ApplyTheme()
 	if tabFunctions["Home"] then tabFunctions["Home"]() end
 	mainFrame.Visible = true
-	print("MxF Hub The Ultimate Edition Loaded!")
+	print("MxFlow Menu Edition Loaded!")
 end
 
 if CurrentSettings.SavedKey ~= "" then
