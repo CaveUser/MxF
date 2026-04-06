@@ -1,6 +1,5 @@
 -- ======================================================
--- 👑 MxF HUB - SPEED HUB X EDITION (FINAL V28 - ULTIMATE)
--- Auto Summon Boss Farm (4 New Bosses + Loop System)
+-- 👑 MxF HUB - V1.0.0
 -- ======================================================
 
 local Players = game:GetService("Players")
@@ -22,12 +21,16 @@ if targetGui:FindFirstChild("MxFHubOverlay") then targetGui.MxFHubOverlay:Destro
 -- ==========================================
 -- 1. CONFIGURATION & VARIABLES
 -- ==========================================
+local API_URL = "https://accepting-newark-symposium-mortality.trycloudflare.com/verify"
+local API_SECRET = "4IfE6mMxbO_flFZKyRNRt1hznL3Q3sWJRChck5C83DA"
+
 local ConfigFileName = "MxFHub_Settings.json"
 local CurrentSettings = {
 	Theme = "Default",
 	Font = "Gotham",
 	Opacity = 0.85,
-	TextSizeOffset = 1
+	TextSizeOffset = 1,
+	SavedKey = ""
 }
 
 local Themes = {
@@ -104,7 +107,7 @@ for npcName, _ in pairs(NpcIslandMap) do table.insert(NpcNames, npcName) end
 local MobNames, BossNames, IslandNames = {}, {}, {}
 for m, i in pairs(MobDatabase) do table.insert(MobNames, m); if not table.find(IslandNames, i) then table.insert(IslandNames, i) end end
 for b, i in pairs(BossDatabase) do table.insert(BossNames, b); if not table.find(IslandNames, i) then table.insert(IslandNames, i) end end
-local ExtraIslands = {"Dungeon", "Boss", "Sailor", "Tower", "Desert", "SnowIsland", "SoulDominion"}
+local ExtraIslands = {"Dungeon", "Boss", "Sailor", "Tower", "Desert", "SnowIsland"}
 for _, island in ipairs(ExtraIslands) do if not table.find(IslandNames, island) then table.insert(IslandNames, island) end end
 
 table.sort(MobNames); table.sort(BossNames); table.sort(IslandNames); table.sort(NpcNames)
@@ -123,12 +126,7 @@ local statPoints = {Melee = 1, Defense = 1, Sword = 1, Power = 1}
 local autoStatsToggles = {Melee = false, Defense = false, Sword = false, Power = false}
 local autoStatsCoroutine = nil
 
--- ✅ DATABASE DES AUTO SUMMON BOSS
-local summonBossesList = {
-	"SaberBoss", "QinShiBoss", "IchigoBoss", "GilgameshBoss", "BlessedMaidenBoss", 
-	"SaberAlterBoss", "MoonSlayerBoss", "TrueAizenBoss", "AtomicBoss", 
-	"StrongestTodayBoss (Gojo)", "StrongestHistoryBoss (Sukuna)"
-}
+local summonBossesList = {"SaberBoss", "QinShiBoss", "IchigoBoss", "GilgameshBoss", "BlessedMaidenBoss", "SaberAlterBoss", "MoonSlayerBoss", "TrueAizenBoss", "AtomicBoss", "StrongestTodayBoss (Gojo)", "StrongestHistoryBoss (Sukuna)"}
 local SummonBossConfig = {
 	["SaberBoss"] = { RemoteType = 1, Island = "Boss", HasDiff = false, TargetName = "Saber" },
 	["QinShiBoss"] = { RemoteType = 1, Island = "Boss", HasDiff = false, TargetName = "Qin" },
@@ -145,10 +143,8 @@ local SummonBossConfig = {
 
 local selectedSummonBoss = summonBossesList[1]
 local difficultyList = {"Normal", "Medium", "Hard", "Extreme"}; local selectedDifficulty = difficultyList[1]
-local summonBossAmount = 1
-local currentSummonCount = 0
-local autoFarmSummonBossEnabled = false
-local autoFarmSummonToggleFunc = nil
+local summonBossAmount = 1; local currentSummonCount = 0
+local autoFarmSummonBossEnabled = false; local autoFarmSummonToggleFunc = nil
 
 local selectedMob, selectedBoss, selectedIsland, selectedNPC = MobNames[1], BossNames[1], IslandNames[1], NpcNames[1]
 local autoFarmMob, autoFarmBoss, autoFarmTower, killauraEnabled = false, false, false, false
@@ -163,7 +159,7 @@ local flyEnabled, flySpeedValue = false, 50
 local infJumpEnabled, noClipEnabled = false, false
 local bodyVelocity, bodyGyro, speedConn, flyConn, noClipConn
 local isBindingAny = false
-local tabButtons = {} 
+local tabFunctions = {} 
 
 -- ==========================================
 -- 2. BACK-END LOGIC
@@ -211,7 +207,7 @@ local function teleportToSpecificNPC(npcName)
 			tween.Completed:Wait()
 			hum.PlatformStand = false
 		else 
-			print("Erreur : Le NPC " .. npcName .. " est introuvable sur " .. targetIsland) 
+			print("Error: NPC " .. npcName .. " not found on " .. targetIsland) 
 		end
 	end)
 end
@@ -262,7 +258,6 @@ local function getTarget(targetName, isSpecific)
 	return closest, minDist
 end
 
--- ✅ COMBAT SYSTEM (INCLUT LE NOUVEAU AUTO SUMMON BOSS FARM)
 local function startCombatLoop()
 	if combatCoroutine then task.cancel(combatCoroutine) end
 	combatCoroutine = task.spawn(function()
@@ -284,11 +279,9 @@ local function startCombatLoop()
 					local tName, island
 					if autoFarmSummonBossEnabled then
 						local conf = SummonBossConfig[selectedSummonBoss]
-						tName = conf.TargetName
-						island = conf.Island
+						tName = conf.TargetName; island = conf.Island
 					elseif autoFarmTower then
-						tName = "NearestTower"
-						island = ""
+						tName = "NearestTower"; island = ""
 					else
 						tName = autoFarmMob and selectedMob or selectedBoss
 						island = autoFarmMob and MobDatabase[selectedMob] or BossDatabase[selectedBoss]
@@ -319,7 +312,6 @@ local function startCombatLoop()
 					else 
 						float.MaxForce = Vector3.new(100000, 100000, 100000)
 						
-						-- ✅ GESTION DE L'AUTO SUMMON BOSS (SPAWN SI AUCUN BOSS EN VUE)
 						if autoFarmSummonBossEnabled then
 							if currentSummonCount < summonBossAmount then
 								pcall(function()
@@ -337,15 +329,12 @@ local function startCombatLoop()
 									end
 								end)
 								currentSummonCount = currentSummonCount + 1
-								task.wait(4) -- Attend que l'animation de spawn se termine
+								task.wait(4) 
 							else
-								-- Fini, on désactive
-								autoFarmSummonBossEnabled = false
-								currentSummonCount = 0
+								autoFarmSummonBossEnabled = false; currentSummonCount = 0
 								if autoFarmSummonToggleFunc then autoFarmSummonToggleFunc(false) end
 							end
 						else
-							-- Farm normal
 							if not autoFarmTower then
 								if not isOnRightIsland then teleportToIsland(island); task.wait(3.5); isOnRightIsland = true end
 							end
@@ -356,8 +345,7 @@ local function startCombatLoop()
 					float.MaxForce = Vector3.new(0, 0, 0)
 					if not flyEnabled then hum.PlatformStand = false end
 					
-					local tName = auraTargetsFarmMob and selectedMob or nil
-					local target, dist = getTarget(tName, auraTargetsFarmMob)
+					local target, dist = getTarget(selectedMob, true)
 					currentTarget = target
 					
 					if target and target:FindFirstChild("HumanoidRootPart") then
@@ -514,36 +502,74 @@ end)
 
 
 -- ==========================================
--- 3. MOTEUR UI (THEME ENGINE SAFE & OVERLAYS)
+-- 3. MOTEUR UI & KEY SYSTEM (API PYTHON FIX)
 -- ==========================================
 
-local overlayGui = Instance.new("ScreenGui", targetGui)
-overlayGui.Name = "MxFHubOverlay"
-overlayGui.DisplayOrder = 90 
+local requestFunc = request or http_request or (http and http.request) or syn and syn.request
 
+local hwid = ""
+pcall(function()
+	if gethwid then hwid = gethwid()
+	else hwid = game:GetService("RbxAnalyticsService"):GetClientId() end
+end)
+
+local function VerifyKey(keyToTest)
+	if not requestFunc then return false, "Executor not supported (missing request)" end
+	if keyToTest == "" then return false, "Please enter a key" end
+
+	local userId = tostring(player.UserId)
+	local queryUrl = string.format("%s?key=%s&user_id=%s&hwid=%s", API_URL, keyToTest, userId, hwid)
+
+	local success, response = pcall(function()
+		return requestFunc({
+			Url = queryUrl,
+			Method = "GET",
+			Headers = {
+				["x-api-secret"] = API_SECRET
+			}
+		})
+	end)
+
+	if success and response then
+		if response.StatusCode == 200 then
+			local successJson, responseBody = pcall(function() return HttpService:JSONDecode(response.Body) end)
+			if successJson and type(responseBody) == "table" then
+				if responseBody.valid == true then
+					return true, responseBody.message or "Success"
+				else
+					return false, responseBody.message or "Invalid key"
+				end
+			else
+				return false, "API read error"
+			end
+		elseif response.StatusCode == 429 then
+			return false, "Too many requests, try again later."
+		else
+			return false, "API Error (" .. tostring(response.StatusCode) .. ")"
+		end
+	end
+	return false, "API connection error"
+end
+
+local overlayGui = Instance.new("ScreenGui", targetGui)
+overlayGui.Name = "MxFHubOverlay"; overlayGui.DisplayOrder = 90 
 local overlayFrame = Instance.new("Frame", overlayGui)
-overlayFrame.Size = UDim2.new(10, 0, 10, 0)
-overlayFrame.Position = UDim2.new(-5, 0, -5, 0)
-overlayFrame.Visible = false
+overlayFrame.Size = UDim2.new(10, 0, 10, 0); overlayFrame.Position = UDim2.new(-5, 0, -5, 0); overlayFrame.Visible = false
 
 local screenGui = Instance.new("ScreenGui", targetGui)
-screenGui.Name = "MxFHubPremium"
-screenGui.DisplayOrder = 100 
+screenGui.Name = "MxFHubPremium"; screenGui.DisplayOrder = 100 
 
 local mainFrame = Instance.new("Frame", screenGui)
-mainFrame.Size = UIConfig.WindowSize
-mainFrame.Position = UDim2.new(0.5, -380, 0.5, -260)
-mainFrame.BorderSizePixel = 0
-mainFrame:SetAttribute("BgRole", "Main")
+mainFrame.Size = UIConfig.WindowSize; mainFrame.Position = UDim2.new(0.5, -380, 0.5, -260)
+mainFrame.BorderSizePixel = 0; mainFrame:SetAttribute("BgRole", "Main")
 Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 10)
+mainFrame.Visible = false
 
 local stroke = Instance.new("UIStroke", mainFrame)
 stroke.Thickness = 1.2; stroke:SetAttribute("StrokeRole", "Stroke")
 
 local sidebar = Instance.new("Frame", mainFrame)
-sidebar.Size = UDim2.new(0, 200, 1, 0)
-sidebar.BorderSizePixel = 0
-sidebar:SetAttribute("BgRole", "Side")
+sidebar.Size = UDim2.new(0, 200, 1, 0); sidebar.BorderSizePixel = 0; sidebar:SetAttribute("BgRole", "Side")
 Instance.new("UICorner", sidebar).CornerRadius = UDim.new(0, 10)
 
 local logoImg = Instance.new("ImageLabel", sidebar)
@@ -552,35 +578,28 @@ logoImg.BackgroundTransparency = 1; logoImg.ScaleType = Enum.ScaleType.Fit
 pcall(function()
 	local logoUrl = "https://i.goopics.net/lpt7p1.png"
 	if writefile and getcustomasset then
-		local data = game:HttpGet(logoUrl)
-		writefile("mxf_logo.png", data)
+		local data = game:HttpGet(logoUrl); writefile("mxf_logo.png", data)
 		logoImg.Image = getcustomasset("mxf_logo.png")
-	else
-		logoImg.Image = "rbxassetid://10629237000"
-	end
+	else logoImg.Image = "rbxassetid://10629237000" end
 end)
 
 local hubName = Instance.new("TextLabel", sidebar)
 hubName.Size = UDim2.new(1, -70, 0, 45); hubName.Position = UDim2.new(0, 70, 0, 15)
 hubName.BackgroundTransparency = 1; hubName.Text = "MxF HUB"
-hubName:SetAttribute("TextRole", "Text"); hubName:SetAttribute("BaseTextSize", 20)
-hubName.TextXAlignment = Enum.TextXAlignment.Left
+hubName:SetAttribute("TextRole", "Text"); hubName:SetAttribute("BaseTextSize", 20); hubName.TextXAlignment = Enum.TextXAlignment.Left
 
 local searchFrame = Instance.new("Frame", sidebar)
 searchFrame.Size = UDim2.new(1, -30, 0, 36); searchFrame.Position = UDim2.new(0, 15, 0, 75)
-searchFrame:SetAttribute("BgRole", "Elem")
-Instance.new("UICorner", searchFrame).CornerRadius = UDim.new(0, 8)
+searchFrame:SetAttribute("BgRole", "Elem"); Instance.new("UICorner", searchFrame).CornerRadius = UDim.new(0, 8)
 
 local searchIcon = Instance.new("ImageLabel", searchFrame)
 searchIcon.Size = UDim2.new(0, 18, 0, 18); searchIcon.Position = UDim2.new(0, 10, 0.5, -9)
-searchIcon.Image = "rbxassetid://7733654492"; searchIcon.BackgroundTransparency = 1
-searchIcon.ImageColor3 = Color3.fromRGB(150, 150, 150)
+searchIcon.Image = "rbxassetid://7733654492"; searchIcon.BackgroundTransparency = 1; searchIcon.ImageColor3 = Color3.fromRGB(150, 150, 150)
 
 local searchBox = Instance.new("TextBox", searchFrame)
 searchBox.Size = UDim2.new(1, -40, 1, 0); searchBox.Position = UDim2.new(0, 35, 0, 0)
 searchBox.BackgroundTransparency = 1; searchBox.PlaceholderText = "Search..."; searchBox.Text = ""
-searchBox:SetAttribute("TextRole", "Text"); searchBox:SetAttribute("BaseTextSize", 14)
-searchBox.TextXAlignment = Enum.TextXAlignment.Left
+searchBox:SetAttribute("TextRole", "Text"); searchBox:SetAttribute("BaseTextSize", 14); searchBox.TextXAlignment = Enum.TextXAlignment.Left
 
 local navList = Instance.new("ScrollingFrame", sidebar)
 navList.Size = UDim2.new(1, 0, 1, -130); navList.Position = UDim2.new(0, 0, 0, 130)
@@ -588,13 +607,11 @@ navList.BackgroundTransparency = 1; navList.ScrollBarThickness = 0
 local navLayout = Instance.new("UIListLayout", navList); navLayout.Padding = UDim.new(0, 6); navLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 
 local container = Instance.new("Frame", mainFrame)
-container.Size = UDim2.new(1, -210, 1, -20); container.Position = UDim2.new(0, 205, 0, 10)
-container.BackgroundTransparency = 1
+container.Size = UDim2.new(1, -210, 1, -20); container.Position = UDim2.new(0, 205, 0, 10); container.BackgroundTransparency = 1
 
 local activeTabName = Instance.new("TextLabel", container)
 activeTabName.Size = UDim2.new(1, 0, 0, 45); activeTabName.BackgroundTransparency = 1; activeTabName.Text = "Home"
-activeTabName:SetAttribute("TextRole", "Text"); activeTabName:SetAttribute("BaseTextSize", 26)
-activeTabName.TextXAlignment = Enum.TextXAlignment.Left
+activeTabName:SetAttribute("TextRole", "Text"); activeTabName:SetAttribute("BaseTextSize", 26); activeTabName.TextXAlignment = Enum.TextXAlignment.Left
 
 local versionLbl = Instance.new("TextLabel", mainFrame)
 versionLbl.Size = UDim2.new(0, 300, 0, 20); versionLbl.Position = UDim2.new(1, -15, 1, -10)
@@ -602,6 +619,56 @@ versionLbl.AnchorPoint = Vector2.new(1, 1); versionLbl.BackgroundTransparency = 
 versionLbl.Text = "V.1.0.0 | © MxFlow created by MxF Studio, All rights reserved."
 versionLbl.TextXAlignment = Enum.TextXAlignment.Right
 versionLbl:SetAttribute("TextRole", "TextDim"); versionLbl:SetAttribute("BaseTextSize", 11)
+
+
+-- KEY SYSTEM & LOADING UI
+local authFrame = Instance.new("Frame", screenGui)
+authFrame.Size = UDim2.new(0, 350, 0, 250); authFrame.Position = UDim2.new(0.5, -175, 0.5, -125)
+authFrame:SetAttribute("BgRole", "Main"); Instance.new("UICorner", authFrame).CornerRadius = UDim.new(0, 10)
+Instance.new("UIStroke", authFrame):SetAttribute("StrokeRole", "Stroke")
+authFrame.Visible = false
+
+local authTitle = Instance.new("TextLabel", authFrame)
+authTitle.Size = UDim2.new(1, 0, 0, 50); authTitle.Position = UDim2.new(0, 0, 0, 20); authTitle.BackgroundTransparency = 1
+authTitle.Text = "MxF HUB KEY SYSTEM"; authTitle:SetAttribute("TextRole", "Text"); authTitle:SetAttribute("BaseTextSize", 20)
+
+local keyInputBg = Instance.new("Frame", authFrame)
+keyInputBg.Size = UDim2.new(0.8, 0, 0, 40); keyInputBg.Position = UDim2.new(0.1, 0, 0, 80)
+keyInputBg:SetAttribute("BgRole", "Elem"); Instance.new("UICorner", keyInputBg).CornerRadius = UDim.new(0, 8)
+Instance.new("UIStroke", keyInputBg):SetAttribute("StrokeRole", "Stroke")
+
+local keyBox = Instance.new("TextBox", keyInputBg)
+keyBox.Size = UDim2.new(1, -20, 1, 0); keyBox.Position = UDim2.new(0, 10, 0, 0); keyBox.BackgroundTransparency = 1
+keyBox.PlaceholderText = "Enter your Key here..."; keyBox.Text = ""
+keyBox.TextXAlignment = Enum.TextXAlignment.Left; keyBox.TextTruncate = Enum.TextTruncate.AtEnd; keyBox.ClearTextOnFocus = false
+keyBox:SetAttribute("TextRole", "Text"); keyBox:SetAttribute("BaseTextSize", 11)
+
+local verifyBtn = Instance.new("TextButton", authFrame)
+verifyBtn.Size = UDim2.new(0.8, 0, 0, 40); verifyBtn.Position = UDim2.new(0.1, 0, 0, 135)
+verifyBtn:SetAttribute("BgRole", "AccentBg"); verifyBtn.Text = "Verify Key"
+verifyBtn:SetAttribute("TextRole", "Main"); verifyBtn:SetAttribute("BaseTextSize", 15); Instance.new("UICorner", verifyBtn).CornerRadius = UDim.new(0, 8)
+
+local getBtn = Instance.new("TextButton", authFrame)
+getBtn.Size = UDim2.new(0.8, 0, 0, 30); getBtn.Position = UDim2.new(0.1, 0, 0, 185)
+getBtn.BackgroundTransparency = 1; getBtn.Text = "Get Key (Discord)"
+getBtn:SetAttribute("TextRole", "TextDim"); getBtn:SetAttribute("BaseTextSize", 12)
+getBtn.MouseButton1Click:Connect(function() if setclipboard then setclipboard("https://discord.gg/w3Dr9VzjS6") end end)
+
+local loadFrame = Instance.new("Frame", screenGui)
+loadFrame.Size = UDim2.new(0, 300, 0, 100); loadFrame.Position = UDim2.new(0.5, -150, 0.5, -50)
+loadFrame:SetAttribute("BgRole", "Main"); Instance.new("UICorner", loadFrame).CornerRadius = UDim.new(0, 10)
+Instance.new("UIStroke", loadFrame):SetAttribute("StrokeRole", "Stroke")
+loadFrame.Visible = false
+
+local loadText = Instance.new("TextLabel", loadFrame)
+loadText.Size = UDim2.new(1, 0, 0, 40); loadText.Position = UDim2.new(0, 0, 0, 15); loadText.BackgroundTransparency = 1
+loadText.Text = "Authenticating..."; loadText:SetAttribute("TextRole", "Text"); loadText:SetAttribute("BaseTextSize", 16)
+
+local barBg = Instance.new("Frame", loadFrame)
+barBg.Size = UDim2.new(0.8, 0, 0, 10); barBg.Position = UDim2.new(0.1, 0, 0, 65)
+barBg:SetAttribute("BgRole", "Elem"); Instance.new("UICorner", barBg).CornerRadius = UDim.new(1, 0)
+local barFill = Instance.new("Frame", barBg)
+barFill.Size = UDim2.new(0, 0, 1, 0); barFill:SetAttribute("BgRole", "AccentBg"); Instance.new("UICorner", barFill).CornerRadius = UDim.new(1, 0)
 
 local function ApplyTheme()
 	pcall(function()
@@ -612,6 +679,8 @@ local function ApplyTheme()
 
 		mainFrame.BackgroundTransparency = 1 - opacity
 		sidebar.BackgroundTransparency = 1 - opacity
+		authFrame.BackgroundTransparency = 1 - opacity
+		loadFrame.BackgroundTransparency = 1 - opacity
 
 		for _, obj in ipairs(screenGui:GetDescendants()) do
 			if obj:IsA("TextLabel") or obj:IsA("TextButton") or obj:IsA("TextBox") then
@@ -624,10 +693,9 @@ local function ApplyTheme()
 				local txtRole = obj:GetAttribute("TextRole")
 				if txtRole == "Text" then obj.TextColor3 = t.Text
 				elseif txtRole == "TextDim" then obj.TextColor3 = t.TextDim 
-				elseif txtRole == "Accent" then obj.TextColor3 = t.Accent end
-			end
-
-			if obj:IsA("GuiObject") then
+				elseif txtRole == "Accent" then obj.TextColor3 = t.Accent
+				elseif txtRole == "Main" then obj.TextColor3 = t.Main end
+				
 				local bgRole = obj:GetAttribute("BgRole")
 				if bgRole == "Main" then obj.BackgroundColor3 = t.Main
 				elseif bgRole == "Side" then obj.BackgroundColor3 = t.Side
@@ -672,9 +740,8 @@ local function CreateTab(name, iconId)
 	pageLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function() page.CanvasSize = UDim2.new(0, 0, 0, pageLayout.AbsoluteContentSize.Y + 20) end)
 
 	Pages[name] = page
-	tabButtons[name] = btn
 
-	btn.MouseButton1Click:Connect(function()
+	local function activate()
 		for n, p in pairs(Pages) do p.Visible = (n == name) end
 		if currentTab then 
 			currentTab.btn:SetAttribute("IsActive", false)
@@ -684,7 +751,10 @@ local function CreateTab(name, iconId)
 		lbl:SetAttribute("TextRole", "Text")
 		activeTabName.Text = name; currentTab = {btn = btn, lbl = lbl, page = page}
 		ApplyTheme()
-	end)
+	end
+	
+	tabFunctions[name] = activate
+	btn.MouseButton1Click:Connect(activate)
 
 	return page
 end
@@ -692,8 +762,7 @@ end
 local function CreateSection(page, text, defaultOpen)
 	local section = Instance.new("Frame", page)
 	section.Size = UDim2.new(1, -10, 0, 45); section.ClipsDescendants = true
-	section:SetAttribute("BgRole", "Elem")
-	section:SetAttribute("IsSection", true)
+	section:SetAttribute("BgRole", "Elem"); section:SetAttribute("IsSection", true)
 	Instance.new("UICorner", section).CornerRadius = UDim.new(0, 10)
 	local sStroke = Instance.new("UIStroke", section); sStroke:SetAttribute("StrokeRole", "Stroke")
 	
@@ -743,15 +812,12 @@ end
 local function CreateTitle(page, text)
 	local frame = Instance.new("Frame", page)
 	frame.Size = UDim2.new(1, -10, 0, 35); frame.BackgroundTransparency = 1
-	
 	local lbl = Instance.new("TextLabel", frame)
 	lbl.Size = UDim2.new(1, 0, 1, -5); lbl.BackgroundTransparency = 1; lbl.Text = text; lbl.TextXAlignment = Enum.TextXAlignment.Left
 	lbl:SetAttribute("TextRole", "Text"); lbl:SetAttribute("BaseTextSize", 15)
-	
 	local line = Instance.new("Frame", frame)
 	line.Size = UDim2.new(1, 0, 0, 1); line.Position = UDim2.new(0, 0, 1, -2)
 	line:SetAttribute("BgRole", "Stroke"); line.BorderSizePixel = 0
-	
 	return lbl
 end
 
@@ -765,84 +831,65 @@ end
 
 local function CreateRow(page, height)
 	local row = Instance.new("Frame", page); row.Size = UDim2.new(1, -10, 0, height or 45); row.BackgroundTransparency = 1
-	row:SetAttribute("IsRow", true)
-	return row
+	row:SetAttribute("IsRow", true); return row
 end
 
 local function CreateInput(page, text, placeholder, default, callback)
 	local row = CreateRow(page, 45)
-	
 	local lbl = Instance.new("TextLabel", row)
 	lbl.Size = UDim2.new(0.5, 0, 1, 0); lbl.Position = UDim2.new(0, 10, 0, 0); lbl.BackgroundTransparency = 1; lbl.Text = text; lbl.TextXAlignment = Enum.TextXAlignment.Left
 	lbl:SetAttribute("TextRole", "TextDim"); lbl:SetAttribute("BaseTextSize", 14)
-
 	local inputBg = Instance.new("Frame", row)
 	inputBg.Size = UDim2.new(0.4, 0, 0, 32); inputBg.Position = UDim2.new(1, -10, 0.5, -16); inputBg.AnchorPoint = Vector2.new(1, 0)
 	inputBg:SetAttribute("BgRole", "Main"); Instance.new("UICorner", inputBg).CornerRadius = UDim.new(0, 8)
-	local str = Instance.new("UIStroke", inputBg); str:SetAttribute("StrokeRole", "Stroke")
-
+	Instance.new("UIStroke", inputBg):SetAttribute("StrokeRole", "Stroke")
 	local box = Instance.new("TextBox", inputBg)
 	box.Size = UDim2.new(1, -10, 1, 0); box.Position = UDim2.new(0, 5, 0, 0); box.BackgroundTransparency = 1
 	box.Text = tostring(default); box.PlaceholderText = placeholder
 	box:SetAttribute("TextRole", "Accent"); box:SetAttribute("BaseTextSize", 13)
-
 	box.FocusLost:Connect(function() if callback then callback(box.Text) end end)
 end
 
 local function CreateToggle(page, text, default, callback)
 	local row = CreateRow(page, 45); local state = default
-	
 	local lbl = Instance.new("TextLabel", row)
 	lbl.Size = UDim2.new(0.7, 0, 1, 0); lbl.Position = UDim2.new(0, 10, 0, 0); lbl.BackgroundTransparency = 1; lbl.Text = text; lbl.TextXAlignment = Enum.TextXAlignment.Left
 	lbl:SetAttribute("TextRole", "TextDim"); lbl:SetAttribute("BaseTextSize", 14)
-	
 	local btn = Instance.new("TextButton", row)
 	btn.Size = UDim2.new(1, 0, 1, 0); btn.BackgroundTransparency = 1; btn.Text = ""
-
 	local pill = Instance.new("Frame", row)
 	pill.Size = UDim2.new(0, 42, 0, 22); pill.Position = UDim2.new(1, -52, 0.5, -11)
 	pill:SetAttribute("BgRole", "TogglePill"); pill:SetAttribute("ToggleState", state)
 	Instance.new("UICorner", pill).CornerRadius = UDim.new(1, 0)
-
 	local circle = Instance.new("Frame", pill)
 	circle.Size = UDim2.new(0, 16, 0, 16); circle.Position = state and UDim2.new(1, -19, 0.5, -8) or UDim2.new(0, 3, 0.5, -8)
 	circle.BackgroundColor3 = Color3.fromRGB(255, 255, 255); Instance.new("UICorner", circle).CornerRadius = UDim.new(1, 0)
-
-	local function setState(newState)
-		state = newState
-		pill:SetAttribute("ToggleState", state)
-		local tPos = state and UDim2.new(1, -19, 0.5, -8) or UDim2.new(0, 3, 0.5, -8)
-		TweenService:Create(circle, TweenInfo.new(0.2), {Position = tPos}):Play()
-		ApplyTheme()
-	end
-
 	btn.MouseButton1Click:Connect(function()
-		setState(not state)
-		callback(state)
+		state = not state; pill:SetAttribute("ToggleState", state)
+		TweenService:Create(circle, TweenInfo.new(0.2), {Position = state and UDim2.new(1, -19, 0.5, -8) or UDim2.new(0, 3, 0.5, -8)}):Play()
+		ApplyTheme(); callback(state)
 	end)
-	
-	return setState
+	return function(newState)
+		state = newState; pill:SetAttribute("ToggleState", state)
+		TweenService:Create(circle, TweenInfo.new(0.2), {Position = state and UDim2.new(1, -19, 0.5, -8) or UDim2.new(0, 3, 0.5, -8)}):Play()
+		ApplyTheme(); callback(state)
+	end
 end
 
 local function CreateSlider(page, text, min, max, default, callback)
 	local row = CreateRow(page, 55)
-	
 	local lbl = Instance.new("TextLabel", row)
 	lbl.Size = UDim2.new(0.5, 0, 0, 25); lbl.Position = UDim2.new(0, 10, 0, 5); lbl.BackgroundTransparency = 1; lbl.Text = text; lbl.TextXAlignment = Enum.TextXAlignment.Left
 	lbl:SetAttribute("TextRole", "TextDim"); lbl:SetAttribute("BaseTextSize", 14)
-
 	local valLbl = Instance.new("TextLabel", row)
 	valLbl.Size = UDim2.new(0.4, 0, 0, 25); valLbl.Position = UDim2.new(1, -50, 0, 5); valLbl.BackgroundTransparency = 1; valLbl.Text = tostring(default); valLbl.TextXAlignment = Enum.TextXAlignment.Right
 	valLbl:SetAttribute("TextRole", "Accent"); valLbl:SetAttribute("BaseTextSize", 13)
-	
 	local sliderBg = Instance.new("TextButton", row)
 	sliderBg.Size = UDim2.new(1, -20, 0, 6); sliderBg.Position = UDim2.new(0, 10, 0, 35); sliderBg.Text = ""
 	sliderBg:SetAttribute("BgRole", "Main"); Instance.new("UICorner", sliderBg).CornerRadius = UDim.new(1, 0)
-	
 	local fill = Instance.new("Frame", sliderBg)
 	fill.Size = UDim2.new((default-min)/(max-min), 0, 1, 0)
 	fill:SetAttribute("BgRole", "AccentBg"); Instance.new("UICorner", fill).CornerRadius = UDim.new(1, 0)
-	
 	local dragging = false
 	local function update()
 		local pos = math.clamp((UIS:GetMouseLocation().X - sliderBg.AbsolutePosition.X) / sliderBg.AbsoluteSize.X, 0, 1)
@@ -857,23 +904,19 @@ end
 local function CreateKeybind(page, text, defaultKey, callback)
 	local row = CreateRow(page, 45)
 	local currentKey = defaultKey
-	
 	local lbl = Instance.new("TextLabel", row)
 	lbl.Size = UDim2.new(0.5, 0, 1, 0); lbl.Position = UDim2.new(0, 10, 0, 0); lbl.BackgroundTransparency = 1; lbl.Text = text; lbl.TextXAlignment = Enum.TextXAlignment.Left
 	lbl:SetAttribute("TextRole", "TextDim"); lbl:SetAttribute("BaseTextSize", 14)
-
 	local btn = Instance.new("TextButton", row)
 	btn.Size = UDim2.new(0.4, 0, 0, 28); btn.Position = UDim2.new(1, -10, 0.5, -14); btn.AnchorPoint = Vector2.new(1, 0)
 	btn:SetAttribute("BgRole", "Main"); btn.Text = currentKey.Name
 	btn:SetAttribute("TextRole", "Text"); btn:SetAttribute("BaseTextSize", 12); Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
-	local str = Instance.new("UIStroke", btn); str:SetAttribute("StrokeRole", "Stroke")
-
+	Instance.new("UIStroke", btn):SetAttribute("StrokeRole", "Stroke")
 	local isBinding = false
 	btn.MouseButton1Click:Connect(function()
 		isBinding = true; isBindingAny = true; btn.Text = "Press Key..."; btn:SetAttribute("TextRole", "Accent")
 		ApplyTheme()
 	end)
-
 	UIS.InputBegan:Connect(function(input)
 		if isBinding and input.UserInputType == Enum.UserInputType.Keyboard then
 			currentKey = input.KeyCode; btn.Text = currentKey.Name; btn:SetAttribute("TextRole", "Text")
@@ -886,68 +929,45 @@ end
 local function CreateDropdown(page, text, options, default, callback)
 	local current = default or options[1]
 	local row = CreateRow(page, 45); row.ClipsDescendants = true
-
 	local lbl = Instance.new("TextLabel", row)
 	lbl.Size = UDim2.new(0.4, 0, 0, 45); lbl.Position = UDim2.new(0, 10, 0, 0); lbl.BackgroundTransparency = 1; lbl.Text = text; lbl.TextXAlignment = Enum.TextXAlignment.Left
 	lbl:SetAttribute("TextRole", "TextDim"); lbl:SetAttribute("BaseTextSize", 14)
-
 	local btn = Instance.new("TextButton", row)
 	btn.Size = UDim2.new(0.5, 0, 0, 32); btn.Position = UDim2.new(1, -10, 0, 6); btn.AnchorPoint = Vector2.new(1, 0); btn.Text = ""
 	btn:SetAttribute("BgRole", "Main"); Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 8)
-	local str = Instance.new("UIStroke", btn); str:SetAttribute("StrokeRole", "Stroke")
-
+	Instance.new("UIStroke", btn):SetAttribute("StrokeRole", "Stroke")
 	local valTxt = Instance.new("TextLabel", btn)
 	valTxt.Size = UDim2.new(1, -30, 1, 0); valTxt.Position = UDim2.new(0, 10, 0, 0); valTxt.BackgroundTransparency = 1; valTxt.TextXAlignment = Enum.TextXAlignment.Left
 	valTxt:SetAttribute("TextRole", "Text"); valTxt:SetAttribute("BaseTextSize", 13)
-
 	local icon = Instance.new("TextLabel", btn)
 	icon.Size = UDim2.new(0, 20, 1, 0); icon.Position = UDim2.new(1, -20, 0, 0); icon.BackgroundTransparency = 1; icon.Text = "▼"
 	icon:SetAttribute("TextRole", "TextDim"); icon:SetAttribute("BaseTextSize", 11)
-
 	local list = Instance.new("Frame", row)
 	list.Size = UDim2.new(1, -20, 0, 0); list.Position = UDim2.new(0, 10, 0, 50); list.BackgroundTransparency = 1
 	local layout = Instance.new("UIListLayout", list); layout.Padding = UDim.new(0, 5)
-
 	local open = false
 	local function updateSize()
 		local targetSize = open and (layout.AbsoluteContentSize.Y + 60) or 45
 		TweenService:Create(row, TweenInfo.new(0.2), {Size = UDim2.new(1, -10, 0, targetSize)}):Play()
 	end
-
-	btn.MouseButton1Click:Connect(function()
-		open = not open; icon.Text = open and "▲" or "▼"
-		updateSize()
-	end)
+	btn.MouseButton1Click:Connect(function() open = not open; icon.Text = open and "▲" or "▼"; updateSize() end)
 
 	local DropdownAPI = {}
 	function DropdownAPI:Refresh(newOptions)
-		for _, child in ipairs(list:GetChildren()) do
-			if child:IsA("TextButton") then child:Destroy() end
-		end
-		
-		current = newOptions[1] or ""
-		valTxt.Text = tostring(current)
-		if callback then callback(current) end
-
+		for _, child in ipairs(list:GetChildren()) do if child:IsA("TextButton") then child:Destroy() end end
+		current = newOptions[1] or ""; valTxt.Text = tostring(current); if callback then callback(current) end
 		for _, opt in ipairs(newOptions) do
 			local oBtn = Instance.new("TextButton", list); oBtn.Size = UDim2.new(1, 0, 0, 28); oBtn.Text = "  " .. opt; oBtn.TextXAlignment = Enum.TextXAlignment.Left
 			oBtn:SetAttribute("BgRole", "Main"); Instance.new("UICorner", oBtn).CornerRadius = UDim.new(0, 6)
 			oBtn:SetAttribute("TextRole", "Text"); oBtn:SetAttribute("BaseTextSize", 13)
-			oBtn.MouseButton1Click:Connect(function()
-				current = opt; valTxt.Text = opt; open = false; icon.Text = "▼"
-				updateSize()
-				if callback then callback(opt) end
-			end)
+			oBtn.MouseButton1Click:Connect(function() current = opt; valTxt.Text = opt; open = false; icon.Text = "▼"; updateSize(); ApplyTheme(); if callback then callback(opt) end end)
 		end
 		if open then updateSize() end
+		ApplyTheme() 
 	end
 
 	DropdownAPI:Refresh(options)
-	if default and table.find(options, default) then
-		valTxt.Text = tostring(default)
-		if callback then callback(default) end
-	end
-
+	if default and table.find(options, default) then valTxt.Text = tostring(default); if callback then callback(default) end end
 	return DropdownAPI
 end
 
@@ -962,15 +982,9 @@ end
 -- ==========================================
 -- 4. CONSTRUCTION DU HUB
 -- ==========================================
-
-local iconHome = "7733799795" 
-local iconAuto = "7734053426" 
-local iconFarm = "7733674079"
-local iconPlayer = "7733954760"
-local iconTeleport = "7733992829"
-local iconShop = "6031280882"
-local iconSettingsUI = "7734068321" 
-local iconSettings = "7733964719" 
+local iconHome = "7733799795"; local iconAuto = "7734053426"; local iconFarm = "7733674079"
+local iconPlayer = "7733954760"; local iconTeleport = "7733992829"; local iconShop = "6031280882"
+local iconSettingsUI = "7734068321"; local iconSettings = "7733964719" 
 
 local pgHome = CreateTab("Home", iconHome)
 local pgAuto = CreateTab("Auto", iconAuto)
@@ -983,15 +997,8 @@ local pgSettings = CreateTab("Settings", iconSettings)
 
 -- --- PAGE HOME ---
 local secWelcome = CreateSection(pgHome, "Welcome", true)
-local welcomeTxt = CreateParagraph(secWelcome, "Welcome to MxFlow hub, the new generation of script for roblox.\nCreated by two French Founders, all rights to this menu are reserved.")
-
-task.spawn(function()
-	while task.wait(1.5) do
-		TweenService:Create(welcomeTxt, TweenInfo.new(1.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, 0, true), {TextTransparency = 0.5}):Play()
-		task.wait(1.5)
-	end
-end)
-
+local welcomeTxt = CreateParagraph(secWelcome, "Welcome to MxFlow menu, the new generation of script for roblox.\nCreated by two French Founders.")
+task.spawn(function() while task.wait(1.5) do TweenService:Create(welcomeTxt, TweenInfo.new(1.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, 0, true), {TextTransparency = 0.5}):Play(); task.wait(1.5) end end)
 local secDiscord = CreateSection(pgHome, "Discord", true)
 CreateButton(secDiscord, "Copy Discord Link", function() if setclipboard then setclipboard("https://discord.gg/w3Dr9VzjS6") end end)
 
@@ -1003,30 +1010,18 @@ CreateToggle(secAutoSkills, "Enable Auto Skills", false, function(v) autoSkillEn
 local secSummon = CreateSection(pgAuto, "Auto Summon Boss", true)
 CreateDropdown(secSummon, "Select Boss", summonBossesList, selectedSummonBoss, function(v) selectedSummonBoss = v end)
 CreateDropdown(secSummon, "Select Difficulty", difficultyList, selectedDifficulty, function(v) selectedDifficulty = v end)
-
 CreateInput(secSummon, "Amount to Summon", "Multiplier", summonBossAmount, function(v) summonBossAmount = tonumber(v) or 1 end)
 CreateButton(secSummon, "Summon Boss Once (Manual)", function()
 	pcall(function()
-		local rs = game:GetService("ReplicatedStorage")
-		local conf = SummonBossConfig[selectedSummonBoss]
-		if conf.RemoteType == 1 then
-			local rem = rs:WaitForChild("Remotes"):WaitForChild("RequestSummonBoss")
+		local rs = game:GetService("ReplicatedStorage"); local conf = SummonBossConfig[selectedSummonBoss]
+		if conf.RemoteType == 1 then local rem = rs:WaitForChild("Remotes"):WaitForChild("RequestSummonBoss")
 			if conf.HasDiff then rem:FireServer(selectedSummonBoss, selectedDifficulty) else rem:FireServer(selectedSummonBoss) end
-		elseif conf.RemoteType == 2 then
-			rs:WaitForChild("RemoteEvents"):WaitForChild("RequestSpawnTrueAizen"):FireServer(selectedDifficulty)
-		elseif conf.RemoteType == 3 then
-			rs:WaitForChild("RemoteEvents"):WaitForChild("RequestSpawnAtomic"):FireServer(selectedDifficulty)
-		elseif conf.RemoteType == 4 then
-			rs:WaitForChild("Remotes"):WaitForChild("RequestSpawnStrongestBoss"):FireServer(conf.PrefixArg, selectedDifficulty)
-		end
+		elseif conf.RemoteType == 2 then rs:WaitForChild("RemoteEvents"):WaitForChild("RequestSpawnTrueAizen"):FireServer(selectedDifficulty)
+		elseif conf.RemoteType == 3 then rs:WaitForChild("RemoteEvents"):WaitForChild("RequestSpawnAtomic"):FireServer(selectedDifficulty)
+		elseif conf.RemoteType == 4 then rs:WaitForChild("Remotes"):WaitForChild("RequestSpawnStrongestBoss"):FireServer(conf.PrefixArg, selectedDifficulty) end
 	end)
 end)
-
-autoFarmSummonToggleFunc = CreateToggle(secSummon, "Auto Farm Summon Boss", false, function(v)
-	autoFarmSummonBossEnabled = v
-	currentSummonCount = 0
-	if v then startCombatLoop() end
-end)
+autoFarmSummonToggleFunc = CreateToggle(secSummon, "Auto Farm Summon Boss", false, function(v) autoFarmSummonBossEnabled = v; currentSummonCount = 0; if v then startCombatLoop() end end)
 
 local secAutoChest = CreateSection(pgAuto, "Auto Chest", true)
 CreateDropdown(secAutoChest, "Select Chest", chestTypesList, selectedChestType, function(v) selectedChestType = v end)
@@ -1055,10 +1050,8 @@ CreateToggle(secAutoStatsConfig, "Auto Allocate", false, function(v) autoStatsTo
 local secFarmTarget = CreateSection(pgFarm, "Auto Farm", true)
 CreateDropdown(secFarmTarget, "Select Monster", MobNames, selectedMob, function(v) selectedMob = v; currentFarmIsland = "" end)
 CreateToggle(secFarmTarget, "Auto Farm Monster", false, function(v) autoFarmMob = v; if v then autoFarmBoss, autoFarmTower, killauraEnabled = false, false, false; startCombatLoop() end end)
-
 CreateDropdown(secFarmTarget, "Select Boss", BossNames, selectedBoss, function(v) selectedBoss = v; currentFarmIsland = "" end)
 CreateToggle(secFarmTarget, "Auto Farm Boss", false, function(v) autoFarmBoss = v; if v then autoFarmMob, autoFarmTower, killauraEnabled = false, false, false; startCombatLoop() end end)
-
 CreateToggle(secFarmTarget, "Auto Farm Nearest (Tower)", false, function(v) autoFarmTower = v; if v then autoFarmMob, autoFarmBoss, killauraEnabled = false, false, false; startCombatLoop() end end)
 
 local secFarmSet = CreateSection(pgFarm, "Settings & Speed", false)
@@ -1067,7 +1060,7 @@ CreateSlider(secFarmSet, "Distance From Target (Height)", 0, 30, 8, function(v) 
 
 -- --- PAGE SELF ---
 local secAura = CreateSection(pgSelf, "Combat Assist (Aura)", true)
-CreateToggle(secAura, "KillAura (Focus Selected Mob)", false, function(v) killauraEnabled = v; if v then autoFarmMob, autoFarmBoss, autoFarmTower = false, false, false; startCombatLoop() end end)
+CreateToggle(secAura, "KillAura Long Range", false, function(v) killauraEnabled = v; if v then autoFarmMob, autoFarmBoss, autoFarmTower = false, false, false; startCombatLoop() end end)
 CreateSlider(secAura, "Aura Range (Studs)", 10, 1000, 500, function(v) combatRadius = v end)
 
 local secPlayer = CreateSection(pgSelf, "Local Player", false)
@@ -1094,7 +1087,6 @@ local targetPlayerName = ""
 local playerNames = {}
 for _, p in ipairs(Players:GetPlayers()) do if p ~= player then table.insert(playerNames, p.Name) end end
 if #playerNames == 0 then table.insert(playerNames, "No Players") end
-
 local playerDropdown = CreateDropdown(secPlayerTp, "Select Player", playerNames, playerNames[1], function(v) targetPlayerName = v end)
 
 CreateButton(secPlayerTp, "Refresh Players", function()
@@ -1102,26 +1094,19 @@ CreateButton(secPlayerTp, "Refresh Players", function()
 	for _, p in ipairs(Players:GetPlayers()) do if p ~= player then table.insert(newNames, p.Name) end end
 	if #newNames == 0 then table.insert(newNames, "No Players") end
 	playerDropdown:Refresh(newNames)
-	ApplyTheme() 
 end)
 
 CreateButton(secPlayerTp, "Teleport to Player", function()
 	if targetPlayerName and targetPlayerName ~= "No Players" and targetPlayerName ~= "" then
 		local targetP = Players:FindFirstChild(targetPlayerName)
-		local char = player.Character
-		local root = char and char:FindFirstChild("HumanoidRootPart")
-		local hum = char and char:FindFirstChild("Humanoid")
-		
+		local char = player.Character; local root = char and char:FindFirstChild("HumanoidRootPart"); local hum = char and char:FindFirstChild("Humanoid")
 		if targetP and targetP.Character and targetP.Character:FindFirstChild("HumanoidRootPart") and root and hum then
 			local targetCFrame = targetP.Character.HumanoidRootPart.CFrame * CFrame.new(0, 0, -3)
 			local dist = (root.Position - targetCFrame.Position).Magnitude
 			local flyTime = dist / 110 
-			
 			hum.PlatformStand = true
 			local tween = TweenService:Create(root, TweenInfo.new(flyTime, Enum.EasingStyle.Linear), {CFrame = targetCFrame})
-			tween:Play()
-			tween.Completed:Wait()
-			hum.PlatformStand = false
+			tween:Play(); tween.Completed:Wait(); hum.PlatformStand = false
 		end
 	end
 end)
@@ -1132,12 +1117,7 @@ CreateDropdown(secShop, "Select Item", shopItemsList, selectedShopItem, function
 CreateInput(secShop, "Amount to Buy", "Max Quantity", shopBuyAmount, function(v) shopBuyAmount = tonumber(v) or 1 end)
 CreateInput(secShop, "Delay To Buy (Seconds)", "Delay", shopBuyDelay, function(v) shopBuyDelay = tonumber(v) or 0 end)
 CreateToggle(secShop, "Auto Buy Merchant", false, function(v) autoBuyEnabled = v; if v then startAutoBuyLoop() end end)
-CreateButton(secShop, "Buy Once", function() 
-	pcall(function() 
-		local args = { selectedShopItem, tonumber(shopBuyAmount) or 1 }
-		game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("MerchantRemotes"):WaitForChild("PurchaseMerchantItem"):InvokeServer(unpack(args))
-	end) 
-end)
+CreateButton(secShop, "Buy Once", function() pcall(function() game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("MerchantRemotes"):WaitForChild("PurchaseMerchantItem"):InvokeServer(selectedShopItem, tonumber(shopBuyAmount) or 1) end) end)
 
 -- --- PAGE SETTINGS UI ---
 local secTheme = CreateSection(pgSettingsUI, "Theme", true)
@@ -1152,12 +1132,8 @@ CreateSlider(secCustom, "Text Size Offset", -2, 6, tonumber(CurrentSettings.Text
 
 local secScreen = CreateSection(pgSettingsUI, "Screen Overlay", false)
 local isBlack, isWhite = false, false
-CreateToggle(secScreen, "Black Screen", false, function(v)
-	isBlack = v; if v then isWhite = false; overlayFrame.BackgroundColor3 = Color3.new(0,0,0); overlayFrame.Visible = true else overlayFrame.Visible = isWhite end
-end)
-CreateToggle(secScreen, "White Screen", false, function(v)
-	isWhite = v; if v then isBlack = false; overlayFrame.BackgroundColor3 = Color3.new(1,1,1); overlayFrame.Visible = true else overlayFrame.Visible = isBlack end
-end)
+CreateToggle(secScreen, "Black Screen", false, function(v) isBlack = v; if v then isWhite = false; overlayFrame.BackgroundColor3 = Color3.new(0,0,0); overlayFrame.Visible = true else overlayFrame.Visible = isWhite end end)
+CreateToggle(secScreen, "White Screen", false, function(v) isWhite = v; if v then isBlack = false; overlayFrame.BackgroundColor3 = Color3.new(1,1,1); overlayFrame.Visible = true else overlayFrame.Visible = isBlack end end)
 
 -- --- PAGE SETTINGS ---
 local secSystem = CreateSection(pgSettings, "System Settings", true)
@@ -1167,15 +1143,8 @@ CreateButton(secSystem, "Server Hop", function()
 	pcall(function()
 		local Http = game:GetService("HttpService"); local TPS = game:GetService("TeleportService")
 		local Api = "https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?sortOrder=Asc&limit=100"
-		local function ListServers(cursor)
-			local Raw = game:HttpGet(Api .. ((cursor and "&cursor="..cursor) or ""))
-			return Http:JSONDecode(Raw)
-		end
-		local Server, Next; repeat
-			local Servers = ListServers(Next)
-			Server = Servers.data[math.random(1, #Servers.data)]
-			Next = Servers.nextPageCursor
-		until Server.playing < Server.maxPlayers and Server.id ~= game.JobId
+		local function ListServers(cursor) return Http:JSONDecode(game:HttpGet(Api .. ((cursor and "&cursor="..cursor) or ""))) end
+		local Server, Next; repeat local Servers = ListServers(Next); Server = Servers.data[math.random(1, #Servers.data)]; Next = Servers.nextPageCursor until Server.playing < Server.maxPlayers and Server.id ~= game.JobId
 		TPS:TeleportToPlaceInstance(game.PlaceId, Server.id, player)
 	end)
 end)
@@ -1190,14 +1159,46 @@ local topDrag = Instance.new("TextButton", mainFrame); topDrag.Size = UDim2.new(
 topDrag.InputBegan:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 then dragS = true; dragP = input.Position; startP = mainFrame.Position end end)
 UIS.InputChanged:Connect(function(input) if dragS and input.UserInputType == Enum.UserInputType.MouseMovement then local delta = input.Position - dragP; mainFrame.Position = UDim2.new(startP.X.Scale, startP.X.Offset + delta.X, startP.Y.Scale, startP.Y.Offset + delta.Y) end end)
 UIS.InputEnded:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 then dragS = false end end)
+UIS.InputBegan:Connect(function(input, gp) if not gp and input.KeyCode == UIConfig.ToggleKey and not isBindingAny then if authFrame.Visible or loadFrame.Visible then return end mainFrame.Visible = not mainFrame.Visible end end)
 
-UIS.InputBegan:Connect(function(input, gp) 
-	if not gp and input.KeyCode == UIConfig.ToggleKey and not isBindingAny then 
-		mainFrame.Visible = not mainFrame.Visible 
-	end 
+-- ==========================================
+-- 5. INITIALISATION (KEY SYSTEM FLOW)
+-- ==========================================
+local function ShowMainMenu()
+	ApplyTheme()
+	if tabFunctions["Home"] then tabFunctions["Home"]() end
+	mainFrame.Visible = true
+	print("MxFlow Menu Edition Loaded!")
+end
+
+if CurrentSettings.SavedKey ~= "" then
+	local isValid = VerifyKey(CurrentSettings.SavedKey)
+	if isValid then ShowMainMenu() else authFrame.Visible = true end
+else
+	authFrame.Visible = true
+end
+
+verifyBtn.MouseButton1Click:Connect(function()
+	local key = keyBox.Text
+	authFrame.Visible = false
+	loadFrame.Visible = true
+	
+	local tween = TweenService:Create(barFill, TweenInfo.new(1.5, Enum.EasingStyle.Sine), {Size = UDim2.new(1, 0, 1, 0)})
+	tween:Play()
+	
+	local isValid, msg = VerifyKey(key)
+	tween.Completed:Wait()
+	
+	if isValid then
+		CurrentSettings.SavedKey = key; SaveSettings()
+		loadFrame.Visible = false; ShowMainMenu()
+	else
+		loadText.Text = "Error: " .. msg; loadText.TextColor3 = Color3.fromRGB(255, 50, 50)
+		task.wait(2)
+		barFill.Size = UDim2.new(0, 0, 1, 0); loadText.Text = "Authenticating..."
+		loadText.TextColor3 = Themes[CurrentSettings.Theme].Text or Color3.new(1,1,1)
+		loadFrame.Visible = false; authFrame.Visible = true
+	end
 end)
 
--- Init
 ApplyTheme()
-if tabButtons["Home"] then tabButtons["Home"].MouseButton1Click:Fire() end
-print("MxF Hub The Ultimate Edition Chargé !")
