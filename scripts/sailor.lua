@@ -1,6 +1,6 @@
 -- ======================================================
--- 👑 MxF HUB - SPEED HUB X EDITION (FINAL V30 - ULTIMATE)
--- Dynamic Follow Player Logic integrated
+-- 👑 MxF HUB - SPEED HUB X EDITION (FINAL V31 - ULTIMATE)
+-- Reverted Loading UI, Follow Player Logic Kept
 -- ======================================================
 
 local Players = game:GetService("Players")
@@ -235,6 +235,18 @@ local function getTarget(targetName, isSpecific)
 			end
 		end
 	end
+	if targetPlayers and targetName ~= "NearestTower" then
+		for _, p in ipairs(Players:GetPlayers()) do
+			if p ~= player and p.Character then
+				local hum = p.Character:FindFirstChild("Humanoid")
+				local root = p.Character:FindFirstChild("HumanoidRootPart")
+				if hum and hum.Health > 0 and root then
+					local dist = (root.Position - myPos).Magnitude
+					if dist <= combatRadius and dist < minDist then minDist = dist; closest = p.Character end
+				end
+			end
+		end
+	end
 	return closest, minDist
 end
 
@@ -460,9 +472,7 @@ local function toggleFly()
 	end)
 end
 
--- ==========================================
--- LOGIQUE PLAYER FOLLOW INTEGREE
--- ==========================================
+-- LOGIQUE FOLLOW PLAYER
 local followTargetName = ""
 local isFollowingPlayer = false
 local followConnection = nil
@@ -487,7 +497,6 @@ player.CharacterAdded:Connect(function()
 	if flyEnabled then toggleFly() end
 	if autoFarmMob or autoFarmBoss or autoFarmTower or autoFarmSummonBossEnabled or killauraEnabled then startCombatLoop() end
 	
-	-- Stop Follow Player on Respawn
 	if isFollowingPlayer then
 		isFollowingPlayer = false
 		if followConnection then followConnection:Disconnect(); followConnection = nil end
@@ -599,7 +608,8 @@ versionLbl.Text = "V.1.0.0 | © MxFlow created by MxF Studio, All rights reserve
 versionLbl.TextXAlignment = Enum.TextXAlignment.Right
 versionLbl:SetAttribute("TextRole", "TextDim"); versionLbl:SetAttribute("BaseTextSize", 11)
 
--- KEY SYSTEM & LOADING UI
+
+-- KEY SYSTEM & LOADING UI (REVERTED TO V29)
 local authFrame = Instance.new("Frame", screenGui)
 authFrame.Size = UDim2.new(0, 350, 0, 250); authFrame.Position = UDim2.new(0.5, -175, 0.5, -125)
 authFrame:SetAttribute("BgRole", "Main"); Instance.new("UICorner", authFrame).CornerRadius = UDim.new(0, 10)
@@ -633,37 +643,20 @@ getBtn:SetAttribute("TextRole", "TextDim"); getBtn:SetAttribute("BaseTextSize", 
 getBtn.MouseButton1Click:Connect(function() if setclipboard then setclipboard("https://discord.gg/w3Dr9VzjS6") end end)
 
 local loadFrame = Instance.new("Frame", screenGui)
-loadFrame.Size = UDim2.new(0, 350, 0, 140); loadFrame.Position = UDim2.new(0.5, -175, 0.5, -70)
+loadFrame.Size = UDim2.new(0, 300, 0, 100); loadFrame.Position = UDim2.new(0.5, -150, 0.5, -50)
 loadFrame:SetAttribute("BgRole", "Main"); Instance.new("UICorner", loadFrame).CornerRadius = UDim.new(0, 10)
 Instance.new("UIStroke", loadFrame):SetAttribute("StrokeRole", "Stroke")
 loadFrame.Visible = false
 
-local loadLogo = Instance.new("ImageLabel", loadFrame)
-loadLogo.Size = UDim2.new(0, 40, 0, 40); loadLogo.Position = UDim2.new(0.5, -20, 0, 15)
-loadLogo.BackgroundTransparency = 1; loadLogo.ScaleType = Enum.ScaleType.Fit
-pcall(function()
-	local logoUrl = "https://i.goopics.net/lpt7p1.png"
-	if writefile and getcustomasset then
-		local data = game:HttpGet(logoUrl); writefile("mxf_logo.png", data)
-		loadLogo.Image = getcustomasset("mxf_logo.png")
-	else loadLogo.Image = "rbxassetid://10629237000" end
-end)
-
 local loadText = Instance.new("TextLabel", loadFrame)
-loadText.Size = UDim2.new(1, 0, 0, 30); loadText.Position = UDim2.new(0, 0, 0, 60); loadText.BackgroundTransparency = 1
+loadText.Size = UDim2.new(1, 0, 0, 40); loadText.Position = UDim2.new(0, 0, 0, 15); loadText.BackgroundTransparency = 1
 loadText.Text = "Authenticating..."; loadText:SetAttribute("TextRole", "Text"); loadText:SetAttribute("BaseTextSize", 16)
 
 local barBg = Instance.new("Frame", loadFrame)
-barBg.Size = UDim2.new(0.8, 0, 0, 8); barBg.Position = UDim2.new(0.1, 0, 0, 105)
+barBg.Size = UDim2.new(0.8, 0, 0, 10); barBg.Position = UDim2.new(0.1, 0, 0, 65)
 barBg:SetAttribute("BgRole", "Elem"); Instance.new("UICorner", barBg).CornerRadius = UDim.new(1, 0)
 local barFill = Instance.new("Frame", barBg)
 barFill.Size = UDim2.new(0, 0, 1, 0); barFill:SetAttribute("BgRole", "AccentBg"); Instance.new("UICorner", barFill).CornerRadius = UDim.new(1, 0)
-
-task.spawn(function()
-	while task.wait(0.8) do
-		if loadFrame.Visible then TweenService:Create(loadText, TweenInfo.new(0.8, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, 0, true), {TextTransparency = 0.5}):Play() end
-	end
-end)
 
 local function ApplyTheme()
 	pcall(function()
@@ -1204,22 +1197,8 @@ local function ShowMainMenu()
 end
 
 if CurrentSettings.SavedKey ~= "" then
-	loadFrame.Visible = true
-	loadText.Text = "Auto-Logging in..."
-	TweenService:Create(barFill, TweenInfo.new(0.5, Enum.EasingStyle.Quad), {Size = UDim2.new(0.4, 0, 1, 0)}):Play()
-	task.wait(0.5)
-	
 	local isValid = VerifyKey(CurrentSettings.SavedKey)
-	if isValid then 
-		TweenService:Create(barFill, TweenInfo.new(0.5, Enum.EasingStyle.Quad), {Size = UDim2.new(1, 0, 1, 0)}):Play()
-		loadText.Text = "Welcome back!"
-		task.wait(0.5)
-		loadFrame.Visible = false
-		ShowMainMenu() 
-	else 
-		loadFrame.Visible = false
-		authFrame.Visible = true 
-	end
+	if isValid then ShowMainMenu() else authFrame.Visible = true end
 else
 	authFrame.Visible = true
 end
@@ -1228,29 +1207,19 @@ verifyBtn.MouseButton1Click:Connect(function()
 	local key = keyBox.Text
 	authFrame.Visible = false
 	loadFrame.Visible = true
-	loadText.Text = "Connecting to Server..."
-	barFill.Size = UDim2.new(0, 0, 1, 0)
 	
-	TweenService:Create(barFill, TweenInfo.new(0.5, Enum.EasingStyle.Quad), {Size = UDim2.new(0.3, 0, 1, 0)}):Play()
-	task.wait(0.5)
+	local tween = TweenService:Create(barFill, TweenInfo.new(1.5, Enum.EasingStyle.Sine), {Size = UDim2.new(1, 0, 1, 0)})
+	tween:Play()
 	
-	loadText.Text = "Verifying Key..."
 	local isValid, msg = VerifyKey(key)
+	tween.Completed:Wait()
 	
 	if isValid then
-		TweenService:Create(barFill, TweenInfo.new(0.5, Enum.EasingStyle.Quad), {Size = UDim2.new(0.7, 0, 1, 0)}):Play()
-		loadText.Text = "Key Validated! Loading UI..."
-		task.wait(0.5)
-		TweenService:Create(barFill, TweenInfo.new(0.5, Enum.EasingStyle.Quad), {Size = UDim2.new(1, 0, 1, 0)}):Play()
-		task.wait(0.5)
-		
 		CurrentSettings.SavedKey = key; SaveSettings()
 		loadFrame.Visible = false; ShowMainMenu()
 	else
-		TweenService:Create(barFill, TweenInfo.new(0.3, Enum.EasingStyle.Quad), {Size = UDim2.new(1, 0, 1, 0)}):Play()
-		ApplyTheme()
 		loadText.Text = "Error: " .. msg; loadText.TextColor3 = Color3.fromRGB(255, 50, 50)
-		task.wait(2.5)
+		task.wait(2)
 		barFill.Size = UDim2.new(0, 0, 1, 0); loadText.Text = "Authenticating..."
 		loadText.TextColor3 = Themes[CurrentSettings.Theme].Text or Color3.new(1,1,1)
 		loadFrame.Visible = false; authFrame.Visible = true
