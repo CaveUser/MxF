@@ -1,5 +1,5 @@
 -- ======================================================
--- 👑 MxF HUB - SPEED HUB X EDITION (FINAL V37 - SAILOR PIECE)
+-- 👑 MxF HUB - V.1.0.1
 -- SECURED: Anti Direct Execution Bypass
 -- ======================================================
 
@@ -13,7 +13,7 @@ if not passedToken or type(passedToken) ~= "string" or not envToken or passedTok
 	local Players = game:GetService("Players")
 	local player = Players.LocalPlayer
 	if player then
-		player:Kick("\n👑 MxF HUB SECURITY 👑\nUnauthorized Execution detected.\nPlease use the official Loader to access this script.")
+		player:Kick("\n👑 MxF SECURITY 👑\nUnauthorized Execution detected.\nPlease use the official Loader to access this script.")
 	end
 	return
 end
@@ -593,7 +593,7 @@ end)
 
 local hubName = Instance.new("TextLabel", sidebar)
 hubName.Size = UDim2.new(1, -70, 0, 45); hubName.Position = UDim2.new(0, 70, 0, 15)
-hubName.BackgroundTransparency = 1; hubName.Text = "MxF HUB"
+hubName.BackgroundTransparency = 1; hubName.Text = "MxFlow"
 hubName:SetAttribute("TextRole", "Text"); hubName:SetAttribute("BaseTextSize", 20); hubName.TextXAlignment = Enum.TextXAlignment.Left
 
 local searchFrame = Instance.new("Frame", sidebar)
@@ -992,10 +992,10 @@ local pgSettings = CreateTab("Settings", iconSettings)
 
 -- --- PAGE HOME ---
 local secWelcome = CreateSection(pgHome, "Welcome", true)
-local welcomeTxt = CreateParagraph(secWelcome, "Welcome to MxFlow hub, the new generation of script for roblox.\nCreated by two French Founders, all rights to this menu are reserved.")
+local welcomeTxt = CreateParagraph(secWelcome, "Welcome to MxFlow, the new generation of script for roblox.\n")
 task.spawn(function() while task.wait(1.5) do TweenService:Create(welcomeTxt, TweenInfo.new(1.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, 0, true), {TextTransparency = 0.5}):Play(); task.wait(1.5) end end)
 local secDiscord = CreateSection(pgHome, "Discord", true)
-CreateButton(secDiscord, "Copy Discord Link", function() if setclipboard then setclipboard("https://discord.gg/w3Dr9VzjS6") end end)
+CreateButton(secDiscord, "[Copy Discord Link]", function() if setclipboard then setclipboard("https://discord.gg/w3Dr9VzjS6") end end)
 
 -- --- PAGE AUTO ---
 local secAutoSkills = CreateSection(pgAuto, "Auto Skills", true)
