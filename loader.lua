@@ -1,5 +1,5 @@
 -- ======================================================
--- 👑 MxF HUB - LOADER V1.0.1
+-- 👑 MxF HUB - LOADER V1.0.1 (UI FIXED)
 -- Authentication, Launcher & SECURE Injection System
 -- ======================================================
 
@@ -60,6 +60,7 @@ mainFrame.Size = UDim2.new(0, 400, 0, 280)
 mainFrame.Position = UDim2.new(0.5, -200, 0.5, -140)
 mainFrame.BackgroundColor3 = Color3.fromRGB(15, 16, 20)
 mainFrame.BackgroundTransparency = 1
+mainFrame.ClipsDescendants = true -- ✅ FIX: Cache tout ce qui sort du cadre !
 Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 12)
 local stroke = Instance.new("UIStroke", mainFrame)
 stroke.Color = Color3.fromRGB(45, 45, 50)
@@ -134,8 +135,9 @@ statusLbl.TextSize = 12
 -- ==========================================
 local launcherContainer = Instance.new("Frame", mainFrame)
 launcherContainer.Size = UDim2.new(1, 0, 1, -70)
-launcherContainer.Position = UDim2.new(1, 0, 0, 70)
+launcherContainer.Position = UDim2.new(1, 0, 0, 70) -- Hors écran à droite
 launcherContainer.BackgroundTransparency = 1
+launcherContainer.Visible = false -- ✅ FIX: Totalement invisible au début
 
 local gameTile = Instance.new("TextButton", launcherContainer)
 gameTile.Size = UDim2.new(0.8, 0, 0, 150)
@@ -205,6 +207,8 @@ verifyBtn.MouseButton1Click:Connect(function()
 		verifyBtn.BackgroundColor3 = Color3.fromRGB(50, 255, 100)
 		
 		task.wait(0.5)
+		-- ✅ ANIMATION GLISSÉE: On affiche le conteneur puis on le fait glisser de la droite vers le centre
+		launcherContainer.Visible = true
 		TweenService:Create(authContainer, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Position = UDim2.new(-1, 0, 0, 70)}):Play()
 		TweenService:Create(launcherContainer, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Position = UDim2.new(0, 0, 0, 70)}):Play()
 		title.Text = "GAMES"
@@ -221,11 +225,8 @@ gameTile.MouseButton1Click:Connect(function()
 	closeTw.Completed:Wait()
 	screenGui:Destroy()
 	
-	-- ✅ INJECTION DU MAIN SCRIPT (SECURE HANDSHAKE)
-	-- On génère un Token aléatoire
+	-- INJECTION DU MAIN SCRIPT (SECURE HANDSHAKE)
 	local secureToken = "MxF_" .. tostring(math.random(1000000, 9999999))
-	-- On le cache dans l'environnement global de l'exécuteur
 	if getgenv then getgenv().MxF_Session_Token = secureToken end
-	-- On l'envoie secrètement comme argument à loadstring
 	loadstring(game:HttpGet("https://raw.githubusercontent.com/CaveUser/MxF/main/scripts/sailor.lua", true))(secureToken)
 end)
