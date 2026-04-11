@@ -1,5 +1,5 @@
 -- ======================================================
--- 👑 MxF HUB - LOADER V1.0.1 (UI FIXED)
+-- 👑 MxF HUB - LOADER V1.0.1 (LOGO FIXED)
 -- Authentication, Launcher & SECURE Injection System
 -- ======================================================
 
@@ -60,7 +60,7 @@ mainFrame.Size = UDim2.new(0, 400, 0, 280)
 mainFrame.Position = UDim2.new(0.5, -200, 0.5, -140)
 mainFrame.BackgroundColor3 = Color3.fromRGB(15, 16, 20)
 mainFrame.BackgroundTransparency = 1
-mainFrame.ClipsDescendants = true -- ✅ FIX: Cache tout ce qui sort du cadre !
+mainFrame.ClipsDescendants = true
 Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 12)
 local stroke = Instance.new("UIStroke", mainFrame)
 stroke.Color = Color3.fromRGB(45, 45, 50)
@@ -77,9 +77,7 @@ title.TextSize = 28
 title.TextColor3 = Color3.fromRGB(255, 255, 255)
 title.TextTransparency = 1
 
--- ==========================================
 -- ETAPE 1 : AUTHENTIFICATION
--- ==========================================
 local authContainer = Instance.new("Frame", mainFrame)
 authContainer.Size = UDim2.new(1, 0, 1, -70)
 authContainer.Position = UDim2.new(0, 0, 0, 70)
@@ -130,14 +128,12 @@ statusLbl.Text = ""
 statusLbl.Font = Enum.Font.Gotham
 statusLbl.TextSize = 12
 
--- ==========================================
--- ETAPE 2 : LAUNCHER (GAME SELECTOR)
--- ==========================================
+-- ETAPE 2 : LAUNCHER
 local launcherContainer = Instance.new("Frame", mainFrame)
 launcherContainer.Size = UDim2.new(1, 0, 1, -70)
-launcherContainer.Position = UDim2.new(1, 0, 0, 70) -- Hors écran à droite
+launcherContainer.Position = UDim2.new(1, 0, 0, 70)
 launcherContainer.BackgroundTransparency = 1
-launcherContainer.Visible = false -- ✅ FIX: Totalement invisible au début
+launcherContainer.Visible = false
 
 local gameTile = Instance.new("TextButton", launcherContainer)
 gameTile.Size = UDim2.new(0.8, 0, 0, 150)
@@ -151,9 +147,22 @@ local gameImg = Instance.new("ImageLabel", gameTile)
 gameImg.Size = UDim2.new(1, 0, 0, 100)
 gameImg.Position = UDim2.new(0, 0, 0, 0)
 gameImg.BackgroundTransparency = 1
-gameImg.Image = "rbxassetid://13524673898"
 gameImg.ScaleType = Enum.ScaleType.Crop
 Instance.new("UICorner", gameImg).CornerRadius = UDim.new(0, 10)
+
+-- ✅ FONCTION FIX LOGO SAILOR PIECE
+pcall(function()
+    local sailorLogoUrl = "https://i.goopics.net/kn5otk.png"
+    if writefile and getcustomasset then
+        if not isfile("sailor_logo.png") then
+            local data = game:HttpGet(sailorLogoUrl)
+            writefile("sailor_logo.png", data)
+        end
+        gameImg.Image = getcustomasset("sailor_logo.png")
+    else
+        gameImg.Image = "rbxassetid://13524673898" -- Fallback
+    end
+end)
 
 local imgCover = Instance.new("Frame", gameImg)
 imgCover.Size = UDim2.new(1, 0, 0, 10)
@@ -181,9 +190,7 @@ gameStatus.TextSize = 12
 gameStatus.TextColor3 = Color3.fromRGB(50, 255, 100)
 gameStatus.TextXAlignment = Enum.TextXAlignment.Left
 
--- ==========================================
 -- ANIMATIONS & LOGIQUE
--- ==========================================
 TweenService:Create(mainFrame, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0}):Play()
 TweenService:Create(stroke, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Transparency = 0}):Play()
 TweenService:Create(title, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextTransparency = 0}):Play()
@@ -199,15 +206,11 @@ end)
 verifyBtn.MouseButton1Click:Connect(function()
 	local key = keyBox.Text
 	verifyBtn.Text = "Checking..."
-	
 	local isValid, msg = VerifyKey(key)
-	
 	if isValid then
 		verifyBtn.Text = "Success!"
 		verifyBtn.BackgroundColor3 = Color3.fromRGB(50, 255, 100)
-		
 		task.wait(0.5)
-		-- ✅ ANIMATION GLISSÉE: On affiche le conteneur puis on le fait glisser de la droite vers le centre
 		launcherContainer.Visible = true
 		TweenService:Create(authContainer, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Position = UDim2.new(-1, 0, 0, 70)}):Play()
 		TweenService:Create(launcherContainer, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Position = UDim2.new(0, 0, 0, 70)}):Play()
@@ -224,8 +227,6 @@ gameTile.MouseButton1Click:Connect(function()
 	closeTw:Play()
 	closeTw.Completed:Wait()
 	screenGui:Destroy()
-	
-	-- INJECTION DU MAIN SCRIPT (SECURE HANDSHAKE)
 	local secureToken = "MxF_" .. tostring(math.random(1000000, 9999999))
 	if getgenv then getgenv().MxF_Session_Token = secureToken end
 	loadstring(game:HttpGet("https://raw.githubusercontent.com/CaveUser/MxF/main/scripts/sailor.lua", true))(secureToken)
